@@ -28,9 +28,13 @@ namespace ScreenshotQ
             Number
         }
 
+        private const double MinSelectionSize = 12;
+
         private readonly string _outputFolder;
         private readonly double _dpiScaleX;
         private readonly double _dpiScaleY;
+        private readonly double _surfaceWidth;
+        private readonly double _surfaceHeight;
         private EditorTool _currentTool = EditorTool.Select;
         private Point _dragStart;
         private bool _isDragging;
@@ -57,17 +61,26 @@ namespace ScreenshotQ
             Width = virtualBounds.Width / _dpiScaleX;
             Height = virtualBounds.Height / _dpiScaleY;
 
-            double surfaceWidth = screenshot.PixelWidth / _dpiScaleX;
-            double surfaceHeight = screenshot.PixelHeight / _dpiScaleY;
+            _surfaceWidth = screenshot.PixelWidth / _dpiScaleX;
+            _surfaceHeight = screenshot.PixelHeight / _dpiScaleY;
 
             FrozenImage.Source = screenshot;
-            FrozenImage.Width = surfaceWidth;
-            FrozenImage.Height = surfaceHeight;
+            FrozenImage.Width = _surfaceWidth;
+            FrozenImage.Height = _surfaceHeight;
 
-            OverlayCanvas.Width = surfaceWidth;
-            OverlayCanvas.Height = surfaceHeight;
+            SelectedPreview.Source = screenshot;
+            SelectedPreview.Width = _surfaceWidth;
+            SelectedPreview.Height = _surfaceHeight;
+
+            OverlayCanvas.Width = _surfaceWidth;
+            OverlayCanvas.Height = _surfaceHeight;
+
             SelectionRectangle.Width = 0;
             SelectionRectangle.Height = 0;
+            SelectionRectangle.Visibility = Visibility.Collapsed;
+            SelectedPreview.Visibility = Visibility.Collapsed;
+            ToolPanel.Visibility = Visibility.Collapsed;
+            SetResizeThumbsVisibility(Visibility.Collapsed);
 
             HintText.Text = "Drag to select an area. Press Esc to cancel.";
         }
@@ -123,6 +136,12 @@ namespace ScreenshotQ
         {
             Point point = e.GetPosition(OverlayCanvas);
 
+            if (_currentTool != EditorTool.Select && !_hasSelection)
+            {
+                HintText.Text = "Select an area first.";
+                return;
+            }
+
             if (_currentTool == EditorTool.Text)
             {
                 InsertText(point);
@@ -141,6 +160,8 @@ namespace ScreenshotQ
 
             if (_currentTool == EditorTool.Select)
             {
+                ToolPanel.Visibility = Visibility.Collapsed;
+                SetResizeThumbsVisibility(Visibility.Collapsed);
                 SelectionRectangle.Visibility = Visibility.Visible;
                 SetSelectionVisual(new Rect(point, point));
                 return;
@@ -187,16 +208,21 @@ namespace ScreenshotQ
 
             if (_currentTool == EditorTool.Select)
             {
-                if (dragRect.Width >= 6 && dragRect.Height >= 6)
+                if (dragRect.Width >= MinSelectionSize && dragRect.Height >= MinSelectionSize)
                 {
                     _selectionRect = dragRect;
                     _hasSelection = true;
+                    ApplySelectedAreaVisual(dragRect);
+                    PositionToolPanelNearSelection(dragRect);
                     HintText.Text = string.Format(CultureInfo.InvariantCulture, "Selected area: {0:0} x {1:0}", _selectionRect.Width, _selectionRect.Height);
                 }
                 else
                 {
                     _hasSelection = false;
                     SelectionRectangle.Visibility = Visibility.Collapsed;
+                    SelectedPreview.Visibility = Visibility.Collapsed;
+                    ToolPanel.Visibility = Visibility.Collapsed;
+                    SetResizeThumbsVisibility(Visibility.Collapsed);
                     HintText.Text = "Selection is too small. Drag again.";
                 }
             }
@@ -431,6 +457,161 @@ namespace ScreenshotQ
             Canvas.SetTop(SelectionRectangle, normalized.Top);
         }
 
+        private void ApplySelectedAreaVisual(Rect selection)
+        {
+            _selectionRect = NormalizeRect(selection.TopLeft, selection.BottomRight);
+            SelectionRectangle.Visibility = Visibility.Visible;
+            SetSelectionVisual(_selectionRect);
+            SelectedPreview.Clip = new RectangleGeometry(_selectionRect);
+            SelectedPreview.Visibility = Visibility.Visible;
+            UpdateResizeThumbPositions(_selectionRect);
+            SetResizeThumbsVisibility(Visibility.Visible);
+        }
+
+        private void PositionToolPanelNearSelection(Rect selection)
+        {
+            ToolPanel.Visibility = Visibility.Visible;
+            ToolPanel.UpdateLayout();
+
+            const double gap = 10;
+            const double border = 10;
+
+            double panelWidth = Math.Max(100, ToolPanel.ActualWidth);
+            double panelHeight = Math.Max(40, ToolPanel.ActualHeight);
+
+            bool isFullScreenSelection = selection.Left <= 1 && selection.Top <= 1 &&
+                                         Math.Abs(selection.Width - _surfaceWidth) <= 2 &&
+                                         Math.Abs(selection.Height - _surfaceHeight) <= 2;
+
+            double x;
+            double y;
+
+            if (isFullScreenSelection)
+            {
+                x = Clamp(selection.Left + (selection.Width - panelWidth) / 2, border, _surfaceWidth - panelWidth - border);
+                y = Clamp(selection.Top + gap, border, _surfaceHeight - panelHeight - border);
+            }
+            else
+            {
+                x = Clamp(selection.Left + (selection.Width - panelWidth) / 2, border, _surfaceWidth - panelWidth - border);
+                double topY = selection.Top - panelHeight - gap;
+                double bottomY = selection.Bottom + gap;
+
+                bool topFits = topY >= border;
+                bool bottomFits = bottomY + panelHeight <= _surfaceHeight - border;
+
+                if (topFits)
+                {
+                    y = topY;
+                }
+                else if (bottomFits)
+                {
+                    y = bottomY;
+                }
+                else
+                {
+                    y = Clamp(bottomY, border, _surfaceHeight - panelHeight - border);
+                }
+            }
+
+            ToolPanel.Margin = new Thickness(x, y, 0, 0);
+        }
+
+        private void ResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+        {
+            if (!_hasSelection || sender is not Thumb thumb || thumb.Tag is not string tag)
+            {
+                return;
+            }
+
+            double left = _selectionRect.Left;
+            double top = _selectionRect.Top;
+            double right = _selectionRect.Right;
+            double bottom = _selectionRect.Bottom;
+
+            if (tag.Contains("Left", StringComparison.Ordinal))
+            {
+                left = Clamp(left + e.HorizontalChange, 0, right - MinSelectionSize);
+            }
+
+            if (tag.Contains("Right", StringComparison.Ordinal))
+            {
+                right = Clamp(right + e.HorizontalChange, left + MinSelectionSize, _surfaceWidth);
+            }
+
+            if (tag.Contains("Top", StringComparison.Ordinal))
+            {
+                top = Clamp(top + e.VerticalChange, 0, bottom - MinSelectionSize);
+            }
+
+            if (tag.Contains("Bottom", StringComparison.Ordinal))
+            {
+                bottom = Clamp(bottom + e.VerticalChange, top + MinSelectionSize, _surfaceHeight);
+            }
+
+            _selectionRect = new Rect(left, top, right - left, bottom - top);
+            ApplySelectedAreaVisual(_selectionRect);
+            PositionToolPanelNearSelection(_selectionRect);
+            HintText.Text = string.Format(CultureInfo.InvariantCulture, "Selected area: {0:0} x {1:0}", _selectionRect.Width, _selectionRect.Height);
+        }
+
+        private void UpdateResizeThumbPositions(Rect selection)
+        {
+            double left = selection.Left;
+            double top = selection.Top;
+            double right = selection.Right;
+            double bottom = selection.Bottom;
+            double midX = left + selection.Width / 2;
+            double midY = top + selection.Height / 2;
+
+            SetThumbPosition(TopLeftThumb, left, top);
+            SetThumbPosition(TopThumb, midX, top);
+            SetThumbPosition(TopRightThumb, right, top);
+            SetThumbPosition(RightThumb, right, midY);
+            SetThumbPosition(BottomRightThumb, right, bottom);
+            SetThumbPosition(BottomThumb, midX, bottom);
+            SetThumbPosition(BottomLeftThumb, left, bottom);
+            SetThumbPosition(LeftThumb, left, midY);
+        }
+
+        private static void SetThumbPosition(Thumb thumb, double centerX, double centerY)
+        {
+            Canvas.SetLeft(thumb, centerX - (thumb.Width / 2));
+            Canvas.SetTop(thumb, centerY - (thumb.Height / 2));
+        }
+
+        private void SetResizeThumbsVisibility(Visibility visibility)
+        {
+            TopLeftThumb.Visibility = visibility;
+            TopThumb.Visibility = visibility;
+            TopRightThumb.Visibility = visibility;
+            RightThumb.Visibility = visibility;
+            BottomRightThumb.Visibility = visibility;
+            BottomThumb.Visibility = visibility;
+            BottomLeftThumb.Visibility = visibility;
+            LeftThumb.Visibility = visibility;
+        }
+
+        private static double Clamp(double value, double min, double max)
+        {
+            if (max < min)
+            {
+                return min;
+            }
+
+            if (value < min)
+            {
+                return min;
+            }
+
+            if (value > max)
+            {
+                return max;
+            }
+
+            return value;
+        }
+
         private static Rect NormalizeRect(Point start, Point end)
         {
             double left = Math.Min(start.X, end.X);
@@ -444,16 +625,28 @@ namespace ScreenshotQ
         {
             for (int i = OverlayCanvas.Children.Count - 1; i >= 0; i--)
             {
-                if (!ReferenceEquals(OverlayCanvas.Children[i], SelectionRectangle))
+                if (!ReferenceEquals(OverlayCanvas.Children[i], SelectionRectangle) &&
+                    OverlayCanvas.Children[i] is not Thumb)
                 {
                     OverlayCanvas.Children.RemoveAt(i);
                 }
             }
 
             SelectionRectangle.Visibility = Visibility.Collapsed;
+            SelectedPreview.Visibility = Visibility.Collapsed;
+            SelectedPreview.Clip = null;
+            ToolPanel.Visibility = Visibility.Collapsed;
+            SetResizeThumbsVisibility(Visibility.Collapsed);
             _hasSelection = false;
             _numberCounter = 1;
             HintText.Text = "Cleared. Drag to select an area again.";
+            _currentTool = EditorTool.Select;
+            SelectToolButton.IsChecked = true;
+            RectToolButton.IsChecked = false;
+            EllipseToolButton.IsChecked = false;
+            ArrowToolButton.IsChecked = false;
+            TextToolButton.IsChecked = false;
+            NumberToolButton.IsChecked = false;
         }
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -478,6 +671,8 @@ namespace ScreenshotQ
         private void SaveSelectionToFile(Rect selection)
         {
             SelectionRectangle.Visibility = Visibility.Collapsed;
+            ToolPanel.Visibility = Visibility.Collapsed;
+            SetResizeThumbsVisibility(Visibility.Collapsed);
 
             int totalWidth = (int)Math.Round(OverlayCanvas.Width * _dpiScaleX);
             int totalHeight = (int)Math.Round(OverlayCanvas.Height * _dpiScaleY);
@@ -530,4 +725,3 @@ namespace ScreenshotQ
         }
     }
 }
-

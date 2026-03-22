@@ -14,6 +14,20 @@
     <Grid>
         <Grid x:Name="SurfaceRoot" ClipToBounds="True">
             <Image x:Name="FrozenImage" Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+
+            <Rectangle x:Name="DimOverlay"
+                       Fill="#6B111827"
+                       HorizontalAlignment="Stretch"
+                       VerticalAlignment="Stretch"
+                       IsHitTestVisible="False"/>
+
+            <Image x:Name="SelectedPreview"
+                   Stretch="None"
+                   HorizontalAlignment="Left"
+                   VerticalAlignment="Top"
+                   IsHitTestVisible="False"
+                   Visibility="Collapsed"/>
+
             <Canvas x:Name="OverlayCanvas"
                     Background="#01000000"
                     MouseLeftButtonDown="OverlayCanvas_MouseLeftButtonDown"
@@ -22,21 +36,32 @@
                 <Rectangle x:Name="SelectionRectangle"
                            Visibility="Collapsed"
                            Stroke="#38BDF8"
-                           Fill="#2238BDF8"
+                           Fill="#1A38BDF8"
                            StrokeThickness="2"
                            StrokeDashArray="4,4"
                            IsHitTestVisible="False"
                            Panel.ZIndex="999"/>
+
+                <Thumb x:Name="TopLeftThumb" Tag="TopLeft" Width="10" Height="10" Cursor="SizeNWSE" Background="#E2E8F0" BorderBrush="#0EA5E9" BorderThickness="1" DragDelta="ResizeThumb_DragDelta" Visibility="Collapsed" Panel.ZIndex="1001"/>
+                <Thumb x:Name="TopThumb" Tag="Top" Width="10" Height="10" Cursor="SizeNS" Background="#E2E8F0" BorderBrush="#0EA5E9" BorderThickness="1" DragDelta="ResizeThumb_DragDelta" Visibility="Collapsed" Panel.ZIndex="1001"/>
+                <Thumb x:Name="TopRightThumb" Tag="TopRight" Width="10" Height="10" Cursor="SizeNESW" Background="#E2E8F0" BorderBrush="#0EA5E9" BorderThickness="1" DragDelta="ResizeThumb_DragDelta" Visibility="Collapsed" Panel.ZIndex="1001"/>
+                <Thumb x:Name="RightThumb" Tag="Right" Width="10" Height="10" Cursor="SizeWE" Background="#E2E8F0" BorderBrush="#0EA5E9" BorderThickness="1" DragDelta="ResizeThumb_DragDelta" Visibility="Collapsed" Panel.ZIndex="1001"/>
+                <Thumb x:Name="BottomRightThumb" Tag="BottomRight" Width="10" Height="10" Cursor="SizeNWSE" Background="#E2E8F0" BorderBrush="#0EA5E9" BorderThickness="1" DragDelta="ResizeThumb_DragDelta" Visibility="Collapsed" Panel.ZIndex="1001"/>
+                <Thumb x:Name="BottomThumb" Tag="Bottom" Width="10" Height="10" Cursor="SizeNS" Background="#E2E8F0" BorderBrush="#0EA5E9" BorderThickness="1" DragDelta="ResizeThumb_DragDelta" Visibility="Collapsed" Panel.ZIndex="1001"/>
+                <Thumb x:Name="BottomLeftThumb" Tag="BottomLeft" Width="10" Height="10" Cursor="SizeNESW" Background="#E2E8F0" BorderBrush="#0EA5E9" BorderThickness="1" DragDelta="ResizeThumb_DragDelta" Visibility="Collapsed" Panel.ZIndex="1001"/>
+                <Thumb x:Name="LeftThumb" Tag="Left" Width="10" Height="10" Cursor="SizeWE" Background="#E2E8F0" BorderBrush="#0EA5E9" BorderThickness="1" DragDelta="ResizeThumb_DragDelta" Visibility="Collapsed" Panel.ZIndex="1001"/>
             </Canvas>
         </Grid>
 
-        <Border Panel.ZIndex="10"
+        <Border x:Name="ToolPanel"
+                Panel.ZIndex="20"
                 VerticalAlignment="Top"
-                HorizontalAlignment="Center"
+                HorizontalAlignment="Left"
                 Margin="12"
                 Background="#EE0F172A"
                 Padding="10"
-                CornerRadius="10">
+                CornerRadius="10"
+                Visibility="Collapsed">
             <DockPanel LastChildFill="True">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
                     <ToggleButton x:Name="SelectToolButton" Content="Select" Width="72" Margin="0,0,8,0" Click="ToolButton_Click" IsChecked="True"/>
