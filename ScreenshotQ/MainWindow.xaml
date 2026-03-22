@@ -1,0 +1,159 @@
+﻿<Window x:Class="ScreenshotQ.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="ScreenshotQ"
+        Height="520"
+        Width="860"
+        MinHeight="450"
+        MinWidth="720"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="CanResizeWithGrip">
+
+    <Window.Resources>
+        <LinearGradientBrush x:Key="BackgroundBrush" StartPoint="0,0" EndPoint="0,1">
+            <GradientStop Color="#FFF8FAFC" Offset="0"/>
+            <GradientStop Color="#FFF1F5F9" Offset="1"/>
+        </LinearGradientBrush>
+
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="#0F172A"/>
+            <Setter Property="BorderBrush" Value="#0F172A"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="18,11"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#1E293B"/>
+                    <Setter Property="BorderBrush" Value="#1E293B"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#334155"/>
+                    <Setter Property="BorderBrush" Value="#334155"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.55"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+            <Setter Property="Foreground" Value="#0F172A"/>
+            <Setter Property="Background" Value="#FFFFFFFF"/>
+            <Setter Property="BorderBrush" Value="#FFCBD5E1"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FFF8FAFC"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#FFF1F5F9"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="LabelStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#475569"/>
+            <Setter Property="FontSize" Value="13"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Background="{StaticResource BackgroundBrush}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="0*"/>
+            <ColumnDefinition Width="21*"/>
+            <ColumnDefinition Width="409*"/>
+        </Grid.ColumnDefinitions>
+        <Grid Margin="32,32,32,32" Grid.ColumnSpan="3">
+            <Border Padding="28"
+                    MaxWidth="700"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    CornerRadius="16"
+                    BorderBrush="#FFE2E8F0"
+                    BorderThickness="1"
+                    Background="#FFFFFFFF">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel>
+                        <TextBlock Text="ScreenshotQ"
+                                   FontSize="30"
+                                   FontWeight="SemiBold"
+                                   Foreground="#0F172A"/>
+                        <TextBlock Margin="0,8,0,0"
+                                   Style="{StaticResource LabelStyle}"
+                                   Text="Fast capture tool with simple one-click workflow."/>
+                    </StackPanel>
+
+                    <Border Grid.Row="1"
+                            Margin="0,20,0,0"
+                            Padding="14"
+                            CornerRadius="10"
+                            Background="#FFF8FAFC"
+                            BorderBrush="#FFE2E8F0"
+                            BorderThickness="1">
+                        <TextBlock Style="{StaticResource LabelStyle}"
+                                   Text="Output folder: Pictures\\ScreenshotQ"/>
+                    </Border>
+
+                    <Grid Grid.Row="2" Margin="0,20,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button x:Name="ScreenshotButton"
+                                Grid.Column="0"
+                                Height="44"
+                                Content="Take Screenshot"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Click="ScreenshotButton_Click"/>
+
+                        <Button Grid.Column="2"
+                                Height="44"
+                                Content="Open Folder"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Click="OpenFolderButton_Click"/>
+                    </Grid>
+
+                    <Border Grid.Row="3"
+                            Margin="0,20,0,0"
+                            Padding="12"
+                            CornerRadius="10"
+                            Background="#FFFFFFFF"
+                            BorderBrush="#FFE2E8F0"
+                            BorderThickness="1">
+                        <TextBlock x:Name="StatusText"
+                                   Text="Ready..."
+                                   TextWrapping="Wrap"
+                                   Foreground="#334155"
+                                   FontSize="13"/>
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>
