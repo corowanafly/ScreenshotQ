@@ -898,8 +898,8 @@ namespace ScreenshotQ
             ToolPanel.Visibility = Visibility.Visible;
             ToolPanel.UpdateLayout();
 
-            const double gap = 10;
-            const double border = 10;
+            const double gap = 4;
+            const double border = 8;
 
             double panelWidth = Math.Max(100, ToolPanel.ActualWidth);
             double panelHeight = Math.Max(40, ToolPanel.ActualHeight);
@@ -907,6 +907,9 @@ namespace ScreenshotQ
             bool isFullScreenSelection = selection.Left <= 1 && selection.Top <= 1 &&
                                          Math.Abs(selection.Width - _surfaceWidth) <= 2 &&
                                          Math.Abs(selection.Height - _surfaceHeight) <= 2;
+            bool touchesTopEdge = selection.Top <= 1;
+            bool touchesBottomEdge = Math.Abs(selection.Bottom - _surfaceHeight) <= 2;
+            bool isFullHeightSelection = touchesTopEdge && touchesBottomEdge;
 
             double centeredX = Clamp(
                 selection.Left + (selection.Width - panelWidth) / 2,
@@ -921,11 +924,16 @@ namespace ScreenshotQ
             double x = centeredX;
             double y;
 
-            if (isFullScreenSelection || (!topFits && !bottomFits))
+            if (isFullScreenSelection || isFullHeightSelection)
             {
-                double insideRightX = selection.Right - panelWidth - gap;
-                x = Clamp(insideRightX, border, _surfaceWidth - panelWidth - border);
-                y = Clamp(selection.Top + gap, border, _surfaceHeight - panelHeight - border);
+                x = Clamp(selection.Right - panelWidth - border, border, _surfaceWidth - panelWidth - border);
+                y = Clamp(selection.Top + border, border, _surfaceHeight - panelHeight - border);
+            }
+            else if (!topFits && !bottomFits)
+            {
+                // For full-height/tall selections, pin toolbar inside selection to avoid off-screen placement.
+                x = Clamp(selection.Right - panelWidth - border, border, _surfaceWidth - panelWidth - border);
+                y = Clamp(selection.Top + border, border, _surfaceHeight - panelHeight - border);
             }
             else if (topFits)
             {

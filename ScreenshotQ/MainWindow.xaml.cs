@@ -54,6 +54,9 @@ namespace ScreenshotQ
         [DllImport("user32.dll")]
         private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
+        [DllImport("user32.dll", SetLastError = true)]
+        private static extern bool DestroyIcon(IntPtr hIcon);
+
         private readonly string _outputFolder;
         private readonly Dictionary<string, (Key Key, ModifierKeys Modifiers)> _shortcuts = new();
         private readonly Forms.NotifyIcon _trayIcon;
@@ -97,7 +100,7 @@ namespace ScreenshotQ
             menu.Items.Add("Take Screenshot", null, (_, _) => _ = Dispatcher.InvokeAsync(() => ScreenshotButton_Click(this, new RoutedEventArgs())));
             menu.Items.Add("Exit", null, (_, _) => ExitFromTray());
 
-            var icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath ?? string.Empty) ?? SystemIcons.Application;
+            System.Drawing.Icon icon = CreateTrayIconFromAsset() ?? System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath ?? string.Empty) ?? SystemIcons.Application;
 
             Forms.NotifyIcon notifyIcon = new()
             {
@@ -109,6 +112,27 @@ namespace ScreenshotQ
 
             notifyIcon.DoubleClick += (_, _) => ShowMainWindowFromTray();
             return notifyIcon;
+        }
+
+        private static System.Drawing.Icon? CreateTrayIconFromAsset()
+        {
+            string assetPath = Path.Combine(AppContext.BaseDirectory, "Assets", "5172910.png");
+            if (!File.Exists(assetPath))
+            {
+                return null;
+            }
+
+            using Bitmap bitmap = new(assetPath);
+            IntPtr hIcon = bitmap.GetHicon();
+            try
+            {
+                using System.Drawing.Icon temp = System.Drawing.Icon.FromHandle(hIcon);
+                return (System.Drawing.Icon)temp.Clone();
+            }
+            finally
+            {
+                _ = DestroyIcon(hIcon);
+            }
         }
 
         private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
