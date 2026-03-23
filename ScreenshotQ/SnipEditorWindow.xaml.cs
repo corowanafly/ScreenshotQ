@@ -31,6 +31,8 @@ namespace ScreenshotQ
 
         private const double MinSelectionSize = 12;
         private const double MinShapeSize = 10;
+        private const double MinTextWidth = 100;
+        private const double MinTextHeight = 36;
 
         private readonly string _outputFolder;
         private readonly double _dpiScaleX;
@@ -50,6 +52,10 @@ namespace ScreenshotQ
         private Rect _selectionRect;
         private bool _hasSelection;
         private int _numberCounter = 1;
+        private readonly HashSet<Border> _editableTextBorders = new();
+        private Border? _selectedTextBorder;
+        private bool _isMovingTextBorder;
+        private Point _textBorderMoveStart;
 
         public string? SavedFilePath { get; private set; }
 
@@ -91,6 +97,7 @@ namespace ScreenshotQ
             SetResizeThumbsVisibility(Visibility.Collapsed);
             SetShapeResizeThumbsVisibility(Visibility.Collapsed);
             SetArrowEndpointThumbsVisibility(Visibility.Collapsed);
+            SetTextResizeThumbsVisibility(Visibility.Collapsed);
 
             HintText.Text = "Drag to select an area. Press Esc to cancel.";
         }
@@ -139,6 +146,32 @@ namespace ScreenshotQ
         private void OverlayCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             Point point = e.GetPosition(OverlayCanvas);
+
+            Border? hitTextBorder = HitTestTextBorder(point);
+            if (hitTextBorder is not null)
+            {
+                SelectTextBorder(hitTextBorder);
+                ClearSelectedShape();
+
+                if (hitTextBorder.Child is TextBox activeTextBox && !activeTextBox.IsReadOnly)
+                {
+                    return;
+                }
+
+                if (e.ClickCount >= 2)
+                {
+                    BeginEditTextBorder(hitTextBorder);
+                }
+                else
+                {
+                    _isMovingTextBorder = true;
+                    _textBorderMoveStart = point;
+                    OverlayCanvas.CaptureMouse();
+                }
+                return;
+            }
+
+            ClearSelectedTextBorder();
 
             if (_currentTool != EditorTool.Select && !_hasSelection)
             {
@@ -206,6 +239,20 @@ namespace ScreenshotQ
         {
             Point point = e.GetPosition(OverlayCanvas);
 
+            if (_isMovingTextBorder)
+            {
+                if (_selectedTextBorder is null)
+                {
+                    _isMovingTextBorder = false;
+                    return;
+                }
+
+                Vector delta = point - _textBorderMoveStart;
+                MoveTextBorder(delta);
+                _textBorderMoveStart = point;
+                return;
+            }
+
             if (_isMovingSelectedShape)
             {
                 if (_selectedShape is null)
@@ -227,7 +274,7 @@ namespace ScreenshotQ
                     return;
                 }
 
-                if (TryFindEditableShape(point, out _))
+                if (TryFindEditableShape(point, out _) || HitTestTextBorder(point) is not null)
                 {
                     OverlayCanvas.Cursor = Cursors.SizeAll;
                 }
@@ -254,6 +301,14 @@ namespace ScreenshotQ
 
         private void OverlayCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
+            if (_isMovingTextBorder)
+            {
+                _isMovingTextBorder = false;
+                OverlayCanvas.ReleaseMouseCapture();
+                HintText.Text = "Text moved.";
+                return;
+            }
+
             if (_isMovingSelectedShape)
             {
                 _isMovingSelectedShape = false;
@@ -422,30 +477,56 @@ namespace ScreenshotQ
 
         private void InsertText(Point point)
         {
-            string? text = PromptText();
-            if (string.IsNullOrWhiteSpace(text))
+            TextBox textBox = new()
             {
-                return;
-            }
+                Foreground = Brushes.White,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                FontSize = 14,
+                FontWeight = FontWeights.SemiBold,
+                MinWidth = MinTextWidth - 16,
+                MinHeight = MinTextHeight - 8,
+                AcceptsReturn = true,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                CaretBrush = Brushes.White,
+                Cursor = Cursors.IBeam,
+                Text = string.Empty,
+            };
 
-            Border textBadge = new()
+            Border container = new()
             {
                 Background = new SolidColorBrush(Color.FromArgb(220, 15, 23, 42)),
                 CornerRadius = new CornerRadius(6),
                 Padding = new Thickness(8, 4, 8, 4),
-                Child = new TextBlock
-                {
-                    Text = text,
-                    Foreground = Brushes.White,
-                    FontSize = 14,
-                    FontWeight = FontWeights.SemiBold
-                },
-                IsHitTestVisible = false
+                Child = textBox,
+                IsHitTestVisible = true,
+                Width = 240,
+                MinHeight = MinTextHeight,
             };
 
-            OverlayCanvas.Children.Add(textBadge);
-            Canvas.SetLeft(textBadge, point.X);
-            Canvas.SetTop(textBadge, point.Y);
+            Panel.SetZIndex(container, 500);
+            OverlayCanvas.Children.Add(container);
+            Canvas.SetLeft(container, point.X);
+            Canvas.SetTop(container, point.Y);
+            _editableTextBorders.Add(container);
+            SelectTextBorder(container);
+
+            textBox.LostFocus += (_, _) => CommitTextBorder(container);
+            textBox.TextChanged += (_, _) => AutoSizeTextBorder(container);
+            textBox.KeyDown += (_, ke) =>
+            {
+                if (ke.Key == Key.Escape || (ke.Key == Key.Enter && Keyboard.Modifiers.HasFlag(ModifierKeys.Control)))
+                {
+                    CommitTextBorder(container);
+                    ke.Handled = true;
+                }
+            };
+
+            container.UpdateLayout();
+            AutoSizeTextBorder(container);
+            textBox.Focus();
+            HintText.Text = "Type text. Box auto-expands by lines. Ctrl+Enter or click outside to finish.";
         }
 
         private void InsertNumber(Point point)
@@ -480,49 +561,247 @@ namespace ScreenshotQ
             Canvas.SetTop(marker, point.Y - 14);
         }
 
-        private string? PromptText()
+        private void CommitTextBorder(Border container)
         {
-            Window prompt = new()
+            if (container.Child is not TextBox textBox)
             {
-                Title = "Insert Text",
-                Width = 360,
-                Height = 170,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                Owner = this,
-                ResizeMode = ResizeMode.NoResize,
-                WindowStyle = WindowStyle.ToolWindow,
-                Background = Brushes.White
-            };
+                return;
+            }
 
-            Grid grid = new();
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            grid.Margin = new Thickness(16);
-
-            TextBlock label = new() { Text = "Text content:" };
-            TextBox input = new() { Margin = new Thickness(0, 8, 0, 14), MinWidth = 300 };
-            Button okButton = new() { Content = "OK", Width = 80, IsDefault = true };
-
-            string? result = null;
-            okButton.Click += (_, _) =>
+            if (string.IsNullOrWhiteSpace(textBox.Text))
             {
-                result = input.Text;
-                prompt.DialogResult = true;
-                prompt.Close();
-            };
+                OverlayCanvas.Children.Remove(container);
+                _editableTextBorders.Remove(container);
+                if (ReferenceEquals(_selectedTextBorder, container))
+                {
+                    ClearSelectedTextBorder();
+                }
+            }
+            else
+            {
+                textBox.IsReadOnly = true;
+                textBox.IsHitTestVisible = false;
+                textBox.Focusable = false;
+                AutoSizeTextBorder(container);
+                HintText.Text = "Text placed. Double-click to edit, drag to move, Delete to remove.";
+            }
+        }
 
-            Grid.SetRow(label, 0);
-            Grid.SetRow(input, 1);
-            Grid.SetRow(okButton, 2);
+        private void BeginEditTextBorder(Border container)
+        {
+            if (container.Child is not TextBox textBox)
+            {
+                return;
+            }
 
-            grid.Children.Add(label);
-            grid.Children.Add(input);
-            grid.Children.Add(okButton);
+            textBox.IsReadOnly = false;
+            textBox.IsHitTestVisible = true;
+            textBox.Focusable = true;
+            textBox.Focus();
+            textBox.CaretIndex = textBox.Text.Length;
+            HintText.Text = "Editing text. Box auto-expands by lines. Ctrl+Enter or click outside to finish.";
+        }
 
-            prompt.Content = grid;
-            prompt.ShowDialog();
-            return result;
+        private Border? HitTestTextBorder(Point point)
+        {
+            for (int i = OverlayCanvas.Children.Count - 1; i >= 0; i--)
+            {
+                if (OverlayCanvas.Children[i] is not Border border || !_editableTextBorders.Contains(border))
+                {
+                    continue;
+                }
+
+                double left = Canvas.GetLeft(border);
+                double top = Canvas.GetTop(border);
+                if (double.IsNaN(left) || double.IsNaN(top))
+                {
+                    continue;
+                }
+
+                if (new Rect(left, top, border.ActualWidth, border.ActualHeight).Contains(point))
+                {
+                    return border;
+                }
+            }
+
+            return null;
+        }
+
+        private void MoveTextBorder(Vector delta)
+        {
+            if (_selectedTextBorder is null)
+            {
+                return;
+            }
+
+            double left = Canvas.GetLeft(_selectedTextBorder);
+            double top = Canvas.GetTop(_selectedTextBorder);
+
+            if (double.IsNaN(left))
+            {
+                left = 0;
+            }
+
+            if (double.IsNaN(top))
+            {
+                top = 0;
+            }
+
+            Canvas.SetLeft(_selectedTextBorder, Clamp(left + delta.X, 0, _surfaceWidth - GetBorderWidth(_selectedTextBorder)));
+            Canvas.SetTop(_selectedTextBorder, Clamp(top + delta.Y, 0, _surfaceHeight - GetBorderHeight(_selectedTextBorder)));
+            UpdateTextResizeThumbPositions(_selectedTextBorder);
+        }
+
+        private void SelectTextBorder(Border border)
+        {
+            _selectedTextBorder = border;
+            UpdateTextResizeThumbPositions(border);
+            SetTextResizeThumbsVisibility(Visibility.Visible);
+        }
+
+        private void ClearSelectedTextBorder()
+        {
+            _selectedTextBorder = null;
+            SetTextResizeThumbsVisibility(Visibility.Collapsed);
+        }
+
+        private Rect GetTextBorderBounds(Border border)
+        {
+            double left = Canvas.GetLeft(border);
+            double top = Canvas.GetTop(border);
+
+            if (double.IsNaN(left))
+            {
+                left = 0;
+            }
+
+            if (double.IsNaN(top))
+            {
+                top = 0;
+            }
+
+            double width = Math.Max(MinTextWidth, GetBorderWidth(border));
+            double height = Math.Max(MinTextHeight, GetBorderHeight(border));
+            return new Rect(left, top, width, height);
+        }
+
+        private void UpdateTextResizeThumbPositions(Border border)
+        {
+            Rect bounds = GetTextBorderBounds(border);
+            SetThumbPosition(TextTopLeftThumb, bounds.Left, bounds.Top);
+            SetThumbPosition(TextTopRightThumb, bounds.Right, bounds.Top);
+            SetThumbPosition(TextBottomRightThumb, bounds.Right, bounds.Bottom);
+            SetThumbPosition(TextBottomLeftThumb, bounds.Left, bounds.Bottom);
+        }
+
+        private void SetTextResizeThumbsVisibility(Visibility visibility)
+        {
+            TextTopLeftThumb.Visibility = visibility;
+            TextTopRightThumb.Visibility = visibility;
+            TextBottomRightThumb.Visibility = visibility;
+            TextBottomLeftThumb.Visibility = visibility;
+        }
+
+        private void TextResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+        {
+            if (_selectedTextBorder is null || sender is not Thumb thumb || thumb.Tag is not string tag)
+            {
+                return;
+            }
+
+            Rect currentBounds = GetTextBorderBounds(_selectedTextBorder);
+            double left = currentBounds.Left;
+            double top = currentBounds.Top;
+            double right = currentBounds.Right;
+            double bottom = currentBounds.Bottom;
+
+            if (tag.Contains("Left", StringComparison.Ordinal))
+            {
+                left = Clamp(left + e.HorizontalChange, 0, right - MinTextWidth);
+            }
+
+            if (tag.Contains("Right", StringComparison.Ordinal))
+            {
+                right = Clamp(right + e.HorizontalChange, left + MinTextWidth, _surfaceWidth);
+            }
+
+            if (tag.Contains("Top", StringComparison.Ordinal))
+            {
+                top = Clamp(top + e.VerticalChange, 0, bottom - MinTextHeight);
+            }
+
+            if (tag.Contains("Bottom", StringComparison.Ordinal))
+            {
+                bottom = Clamp(bottom + e.VerticalChange, top + MinTextHeight, _surfaceHeight);
+            }
+
+            _selectedTextBorder.Width = right - left;
+            _selectedTextBorder.Height = bottom - top;
+            Canvas.SetLeft(_selectedTextBorder, left);
+            Canvas.SetTop(_selectedTextBorder, top);
+            UpdateTextResizeThumbPositions(_selectedTextBorder);
+            HintText.Text = "Text box resized.";
+        }
+
+        private void AutoSizeTextBorder(Border border)
+        {
+            if (border.Child is not TextBox textBox)
+            {
+                return;
+            }
+
+            double width = GetBorderWidth(border);
+            textBox.Width = Math.Max(20, width - border.Padding.Left - border.Padding.Right);
+            textBox.Measure(new Size(textBox.Width, double.PositiveInfinity));
+
+            double desiredHeight = textBox.DesiredSize.Height + border.Padding.Top + border.Padding.Bottom;
+            border.Height = Math.Max(MinTextHeight, desiredHeight);
+
+            double left = Canvas.GetLeft(border);
+            double top = Canvas.GetTop(border);
+            if (double.IsNaN(left))
+            {
+                left = 0;
+            }
+
+            if (double.IsNaN(top))
+            {
+                top = 0;
+            }
+
+            Canvas.SetLeft(border, Clamp(left, 0, _surfaceWidth - GetBorderWidth(border)));
+            Canvas.SetTop(border, Clamp(top, 0, _surfaceHeight - GetBorderHeight(border)));
+            UpdateTextResizeThumbPositions(border);
+        }
+
+        private static double GetBorderWidth(Border border)
+        {
+            if (!double.IsNaN(border.Width) && border.Width > 0)
+            {
+                return border.Width;
+            }
+
+            if (border.ActualWidth > 0)
+            {
+                return border.ActualWidth;
+            }
+
+            return MinTextWidth;
+        }
+
+        private static double GetBorderHeight(Border border)
+        {
+            if (!double.IsNaN(border.Height) && border.Height > 0)
+            {
+                return border.Height;
+            }
+
+            if (border.ActualHeight > 0)
+            {
+                return border.ActualHeight;
+            }
+
+            return MinTextHeight;
         }
 
         private void SetSelectionVisual(Rect rect)
@@ -793,6 +1072,7 @@ namespace ScreenshotQ
 
         private void SelectShape(Shape shape)
         {
+            ClearSelectedTextBorder();
             _selectedShape = shape;
             UpdateSelectedShapeHandles();
 
@@ -815,6 +1095,16 @@ namespace ScreenshotQ
 
         private void DeleteSelectedShape()
         {
+            if (_selectedTextBorder is not null)
+            {
+                Border borderToDelete = _selectedTextBorder;
+                ClearSelectedTextBorder();
+                _editableTextBorders.Remove(borderToDelete);
+                OverlayCanvas.Children.Remove(borderToDelete);
+                HintText.Text = "Text deleted.";
+                return;
+            }
+
             if (_selectedShape is null)
             {
                 return;
@@ -1240,6 +1530,7 @@ namespace ScreenshotQ
             Visibility resizeThumbVisibility = TopLeftThumb.Visibility;
             Visibility shapeResizeThumbVisibility = ShapeTopLeftThumb.Visibility;
             Visibility arrowEndpointThumbVisibility = ArrowStartThumb.Visibility;
+            Visibility textResizeThumbVisibility = TextTopLeftThumb.Visibility;
             Visibility dimOverlayVisibility = DimOverlay.Visibility;
             Geometry? previewClip = SelectedPreview.Clip;
 
@@ -1248,6 +1539,7 @@ namespace ScreenshotQ
             SetResizeThumbsVisibility(Visibility.Collapsed);
             SetShapeResizeThumbsVisibility(Visibility.Collapsed);
             SetArrowEndpointThumbsVisibility(Visibility.Collapsed);
+            SetTextResizeThumbsVisibility(Visibility.Collapsed);
 
             if (IsFullSurfaceSelection(selection))
             {
@@ -1292,6 +1584,7 @@ namespace ScreenshotQ
                 SetResizeThumbsVisibility(resizeThumbVisibility);
                 SetShapeResizeThumbsVisibility(shapeResizeThumbVisibility);
                 SetArrowEndpointThumbsVisibility(arrowEndpointThumbVisibility);
+                SetTextResizeThumbsVisibility(textResizeThumbVisibility);
                 DimOverlay.Visibility = dimOverlayVisibility;
             }
         }
@@ -1312,6 +1605,11 @@ namespace ScreenshotQ
 
         private void Window_KeyDown(object sender, KeyEventArgs e)
         {
+            if (Keyboard.FocusedElement is TextBox)
+            {
+                return;
+            }
+
             if (e.Key == Key.Delete)
             {
                 DeleteSelectedShape();
