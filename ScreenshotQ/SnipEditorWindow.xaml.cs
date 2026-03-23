@@ -92,7 +92,6 @@ namespace ScreenshotQ
                 return;
             }
 
-            SelectToolButton.IsChecked = false;
             RectToolButton.IsChecked = false;
             EllipseToolButton.IsChecked = false;
             ArrowToolButton.IsChecked = false;
@@ -100,12 +99,7 @@ namespace ScreenshotQ
             NumberToolButton.IsChecked = false;
             clicked.IsChecked = true;
 
-            if (clicked == SelectToolButton)
-            {
-                _currentTool = EditorTool.Select;
-                HintText.Text = "Drag to define screenshot area.";
-            }
-            else if (clicked == RectToolButton)
+            if (clicked == RectToolButton)
             {
                 _currentTool = EditorTool.Rectangle;
                 HintText.Text = "Drag to draw rectangle.";
@@ -483,35 +477,32 @@ namespace ScreenshotQ
                                          Math.Abs(selection.Width - _surfaceWidth) <= 2 &&
                                          Math.Abs(selection.Height - _surfaceHeight) <= 2;
 
-            double x;
+            double centeredX = Clamp(
+                selection.Left + (selection.Width - panelWidth) / 2,
+                border,
+                _surfaceWidth - panelWidth - border);
+
+            double topY = selection.Top - panelHeight - gap;
+            double bottomY = selection.Bottom + gap;
+            bool topFits = topY >= border;
+            bool bottomFits = bottomY + panelHeight <= _surfaceHeight - border;
+
+            double x = centeredX;
             double y;
 
-            if (isFullScreenSelection)
+            if (isFullScreenSelection || (!topFits && !bottomFits))
             {
-                x = Clamp(selection.Left + (selection.Width - panelWidth) / 2, border, _surfaceWidth - panelWidth - border);
+                double insideRightX = selection.Right - panelWidth - gap;
+                x = Clamp(insideRightX, border, _surfaceWidth - panelWidth - border);
                 y = Clamp(selection.Top + gap, border, _surfaceHeight - panelHeight - border);
+            }
+            else if (topFits)
+            {
+                y = topY;
             }
             else
             {
-                x = Clamp(selection.Left + (selection.Width - panelWidth) / 2, border, _surfaceWidth - panelWidth - border);
-                double topY = selection.Top - panelHeight - gap;
-                double bottomY = selection.Bottom + gap;
-
-                bool topFits = topY >= border;
-                bool bottomFits = bottomY + panelHeight <= _surfaceHeight - border;
-
-                if (topFits)
-                {
-                    y = topY;
-                }
-                else if (bottomFits)
-                {
-                    y = bottomY;
-                }
-                else
-                {
-                    y = Clamp(bottomY, border, _surfaceHeight - panelHeight - border);
-                }
+                y = Clamp(bottomY, border, _surfaceHeight - panelHeight - border);
             }
 
             ToolPanel.Margin = new Thickness(x, y, 0, 0);
@@ -621,44 +612,25 @@ namespace ScreenshotQ
             return new Rect(left, top, width, height);
         }
 
-        private void ClearButton_Click(object sender, RoutedEventArgs e)
+        private void CopyButton_Click(object sender, RoutedEventArgs e)
         {
-            for (int i = OverlayCanvas.Children.Count - 1; i >= 0; i--)
+            try
             {
-                if (!ReferenceEquals(OverlayCanvas.Children[i], SelectionRectangle) &&
-                    OverlayCanvas.Children[i] is not Thumb)
-                {
-                    OverlayCanvas.Children.RemoveAt(i);
-                }
+                BitmapSource image = RenderSelectionBitmap(GetExportSelection());
+                Clipboard.SetImage(image);
+                HintText.Text = "Copied to clipboard.";
             }
-
-            SelectionRectangle.Visibility = Visibility.Collapsed;
-            SelectedPreview.Visibility = Visibility.Collapsed;
-            SelectedPreview.Clip = null;
-            ToolPanel.Visibility = Visibility.Collapsed;
-            SetResizeThumbsVisibility(Visibility.Collapsed);
-            _hasSelection = false;
-            _numberCounter = 1;
-            HintText.Text = "Cleared. Drag to select an area again.";
-            _currentTool = EditorTool.Select;
-            SelectToolButton.IsChecked = true;
-            RectToolButton.IsChecked = false;
-            EllipseToolButton.IsChecked = false;
-            ArrowToolButton.IsChecked = false;
-            TextToolButton.IsChecked = false;
-            NumberToolButton.IsChecked = false;
+            catch (Exception ex)
+            {
+                HintText.Text = "Copy failed: " + ex.Message;
+            }
         }
 
         private void SaveButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                if (!_hasSelection)
-                {
-                    _selectionRect = new Rect(0, 0, OverlayCanvas.Width, OverlayCanvas.Height);
-                }
-
-                SaveSelectionToFile(_selectionRect);
+                SaveSelectionToFile(GetExportSelection());
                 DialogResult = true;
                 Close();
             }
@@ -670,32 +642,7 @@ namespace ScreenshotQ
 
         private void SaveSelectionToFile(Rect selection)
         {
-            SelectionRectangle.Visibility = Visibility.Collapsed;
-            ToolPanel.Visibility = Visibility.Collapsed;
-            SetResizeThumbsVisibility(Visibility.Collapsed);
-
-            int totalWidth = (int)Math.Round(OverlayCanvas.Width * _dpiScaleX);
-            int totalHeight = (int)Math.Round(OverlayCanvas.Height * _dpiScaleY);
-
-            RenderTargetBitmap rendered = new(
-                totalWidth,
-                totalHeight,
-                96 * _dpiScaleX,
-                96 * _dpiScaleY,
-                PixelFormats.Pbgra32);
-            rendered.Render(SurfaceRoot);
-
-            int x = (int)Math.Max(0, Math.Floor(selection.X * _dpiScaleX));
-            int y = (int)Math.Max(0, Math.Floor(selection.Y * _dpiScaleY));
-            int width = (int)Math.Min(totalWidth - x, Math.Ceiling(selection.Width * _dpiScaleX));
-            int height = (int)Math.Min(totalHeight - y, Math.Ceiling(selection.Height * _dpiScaleY));
-
-            if (width <= 1 || height <= 1)
-            {
-                throw new InvalidOperationException("Selection is too small.");
-            }
-
-            CroppedBitmap cropped = new(rendered, new Int32Rect(x, y, width, height));
+            BitmapSource cropped = RenderSelectionBitmap(selection);
 
             string fileName = DateTime.Now.ToString("yyyyMMdd_HHmmss") + "_edited.png";
             string filePath = System.IO.Path.Combine(_outputFolder, fileName);
@@ -707,6 +654,79 @@ namespace ScreenshotQ
             encoder.Save(stream);
 
             SavedFilePath = filePath;
+        }
+
+        private Rect GetExportSelection()
+        {
+            return _hasSelection
+                ? _selectionRect
+                : new Rect(0, 0, OverlayCanvas.Width, OverlayCanvas.Height);
+        }
+
+        private BitmapSource RenderSelectionBitmap(Rect selection)
+        {
+            Visibility selectionVisibility = SelectionRectangle.Visibility;
+            Visibility previewVisibility = SelectedPreview.Visibility;
+            Visibility toolPanelVisibility = ToolPanel.Visibility;
+            Visibility resizeThumbVisibility = TopLeftThumb.Visibility;
+            Visibility dimOverlayVisibility = DimOverlay.Visibility;
+            Geometry? previewClip = SelectedPreview.Clip;
+
+            SelectionRectangle.Visibility = Visibility.Collapsed;
+            ToolPanel.Visibility = Visibility.Collapsed;
+            SetResizeThumbsVisibility(Visibility.Collapsed);
+
+            if (IsFullSurfaceSelection(selection))
+            {
+                DimOverlay.Visibility = Visibility.Collapsed;
+                SelectedPreview.Visibility = Visibility.Collapsed;
+                SelectedPreview.Clip = null;
+            }
+
+            try
+            {
+                int totalWidth = (int)Math.Round(OverlayCanvas.Width * _dpiScaleX);
+                int totalHeight = (int)Math.Round(OverlayCanvas.Height * _dpiScaleY);
+
+                RenderTargetBitmap rendered = new(
+                    totalWidth,
+                    totalHeight,
+                    96 * _dpiScaleX,
+                    96 * _dpiScaleY,
+                    PixelFormats.Pbgra32);
+                rendered.Render(SurfaceRoot);
+
+                int x = (int)Math.Max(0, Math.Floor(selection.X * _dpiScaleX));
+                int y = (int)Math.Max(0, Math.Floor(selection.Y * _dpiScaleY));
+                int width = (int)Math.Min(totalWidth - x, Math.Ceiling(selection.Width * _dpiScaleX));
+                int height = (int)Math.Min(totalHeight - y, Math.Ceiling(selection.Height * _dpiScaleY));
+
+                if (width <= 1 || height <= 1)
+                {
+                    throw new InvalidOperationException("Selection is too small.");
+                }
+
+                CroppedBitmap cropped = new(rendered, new Int32Rect(x, y, width, height));
+                cropped.Freeze();
+                return cropped;
+            }
+            finally
+            {
+                SelectionRectangle.Visibility = selectionVisibility;
+                SelectedPreview.Visibility = previewVisibility;
+                SelectedPreview.Clip = previewClip;
+                ToolPanel.Visibility = toolPanelVisibility;
+                SetResizeThumbsVisibility(resizeThumbVisibility);
+                DimOverlay.Visibility = dimOverlayVisibility;
+            }
+        }
+
+        private bool IsFullSurfaceSelection(Rect selection)
+        {
+            Rect normalized = NormalizeRect(selection.TopLeft, selection.BottomRight);
+            return normalized.Left <= 1 && normalized.Top <= 1 &&
+                   Math.Abs(normalized.Width - OverlayCanvas.Width) <= 2 &&
+                   Math.Abs(normalized.Height - OverlayCanvas.Height) <= 2;
         }
 
         private void CancelButton_Click(object sender, RoutedEventArgs e)
@@ -725,3 +745,4 @@ namespace ScreenshotQ
         }
     }
 }
+

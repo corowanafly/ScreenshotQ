@@ -3,10 +3,13 @@ D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\bin\Debug\net8.0-windows7.0\Scree
 D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\bin\Debug\net8.0-windows7.0\ScreenshotQ.runtimeconfig.json
 D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\bin\Debug\net8.0-windows7.0\ScreenshotQ.dll
 D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\bin\Debug\net8.0-windows7.0\ScreenshotQ.pdb
+D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\ScreenshotQ.csproj.AssemblyReference.cache
+D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\MainWindow.baml
+D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\SnipEditorWindow.baml
 D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\MainWindow.g.cs
+D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\SnipEditorWindow.g.cs
 D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\App.g.cs
 D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\ScreenshotQ_MarkupCompile.cache
-D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\MainWindow.baml
 D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\ScreenshotQ.g.resources
 D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\ScreenshotQ.GeneratedMSBuildEditorConfig.editorconfig
 D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\ScreenshotQ.AssemblyInfoInputs.cache
@@ -17,6 +20,3 @@ D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\refin
 D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\ScreenshotQ.pdb
 D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\ScreenshotQ.genruntimeconfig.cache
 D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\ref\ScreenshotQ.dll
-D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\SnipEditorWindow.baml
-D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\SnipEditorWindow.g.cs
-D:\Documents\_Projets\ScreeshotApp\ScreenshotQ\obj\Debug\net8.0-windows7.0\ScreenshotQ.csproj.AssemblyReference.cache
