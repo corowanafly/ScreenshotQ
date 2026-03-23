@@ -322,14 +322,14 @@ namespace ScreenshotQ
                 EditorTool.Rectangle => new Rectangle
                 {
                     Stroke = new SolidColorBrush(Color.FromRgb(244, 63, 94)),
-                    Fill = new SolidColorBrush(Color.FromArgb(28, 244, 63, 94)),
+                    Fill = Brushes.Transparent,
                     StrokeThickness = 3,
                     IsHitTestVisible = true
                 },
                 EditorTool.Ellipse => new Ellipse
                 {
                     Stroke = new SolidColorBrush(Color.FromRgb(16, 185, 129)),
-                    Fill = new SolidColorBrush(Color.FromArgb(28, 16, 185, 129)),
+                    Fill = Brushes.Transparent,
                     StrokeThickness = 3,
                     IsHitTestVisible = true
                 },
@@ -870,6 +870,23 @@ namespace ScreenshotQ
             SetThumbPosition(ShapeBottomLeftThumb, bounds.Left, bounds.Bottom);
         }
 
+        private void UpdateEllipseResizeThumbPositions(Rect bounds)
+        {
+            if (bounds.IsEmpty)
+            {
+                SetShapeResizeThumbsVisibility(Visibility.Collapsed);
+                return;
+            }
+
+            double centerX = bounds.Left + (bounds.Width / 2);
+            double centerY = bounds.Top + (bounds.Height / 2);
+
+            SetThumbPosition(ShapeTopLeftThumb, centerX, bounds.Top);
+            SetThumbPosition(ShapeTopRightThumb, bounds.Right, centerY);
+            SetThumbPosition(ShapeBottomRightThumb, centerX, bounds.Bottom);
+            SetThumbPosition(ShapeBottomLeftThumb, bounds.Left, centerY);
+        }
+
         private void UpdateSelectedShapeHandles()
         {
             if (_selectedShape is null)
@@ -896,7 +913,24 @@ namespace ScreenshotQ
             }
 
             SetArrowEndpointThumbsVisibility(Visibility.Collapsed);
-            UpdateShapeResizeThumbPositions(GetShapeBounds(_selectedShape));
+            Rect bounds = GetShapeBounds(_selectedShape);
+            if (_selectedShape is Ellipse)
+            {
+                ShapeTopLeftThumb.Cursor = Cursors.SizeNS;
+                ShapeTopRightThumb.Cursor = Cursors.SizeWE;
+                ShapeBottomRightThumb.Cursor = Cursors.SizeNS;
+                ShapeBottomLeftThumb.Cursor = Cursors.SizeWE;
+                UpdateEllipseResizeThumbPositions(bounds);
+            }
+            else
+            {
+                ShapeTopLeftThumb.Cursor = Cursors.SizeNWSE;
+                ShapeTopRightThumb.Cursor = Cursors.SizeNESW;
+                ShapeBottomRightThumb.Cursor = Cursors.SizeNWSE;
+                ShapeBottomLeftThumb.Cursor = Cursors.SizeNESW;
+                UpdateShapeResizeThumbPositions(bounds);
+            }
+
             SetShapeResizeThumbsVisibility(Visibility.Visible);
         }
 
@@ -924,6 +958,12 @@ namespace ScreenshotQ
         {
             if (_selectedShape is null || _selectedShape is ShapePath || sender is not Thumb thumb || thumb.Tag is not string tag)
             {
+                return;
+            }
+
+            if (_selectedShape is Ellipse)
+            {
+                ResizeEllipseFromEdgeThumb(thumb, e);
                 return;
             }
 
@@ -961,6 +1001,46 @@ namespace ScreenshotQ
             Rect resizedBounds = new(left, top, right - left, bottom - top);
             ApplyShapeBounds(_selectedShape, currentBounds, resizedBounds);
             UpdateShapeResizeThumbPositions(resizedBounds);
+        }
+
+        private void ResizeEllipseFromEdgeThumb(Thumb thumb, DragDeltaEventArgs e)
+        {
+            if (_selectedShape is not Ellipse ellipse)
+            {
+                return;
+            }
+
+            Rect bounds = GetShapeBounds(ellipse);
+            if (bounds.IsEmpty)
+            {
+                return;
+            }
+
+            double left = bounds.Left;
+            double top = bounds.Top;
+            double right = bounds.Right;
+            double bottom = bounds.Bottom;
+
+            if (ReferenceEquals(thumb, ShapeTopLeftThumb))
+            {
+                top = Clamp(top + e.VerticalChange, 0, bottom - MinShapeSize);
+            }
+            else if (ReferenceEquals(thumb, ShapeTopRightThumb))
+            {
+                right = Clamp(right + e.HorizontalChange, left + MinShapeSize, _surfaceWidth);
+            }
+            else if (ReferenceEquals(thumb, ShapeBottomRightThumb))
+            {
+                bottom = Clamp(bottom + e.VerticalChange, top + MinShapeSize, _surfaceHeight);
+            }
+            else if (ReferenceEquals(thumb, ShapeBottomLeftThumb))
+            {
+                left = Clamp(left + e.HorizontalChange, 0, right - MinShapeSize);
+            }
+
+            Rect resizedBounds = new(left, top, right - left, bottom - top);
+            ApplyShapeBounds(ellipse, bounds, resizedBounds);
+            UpdateEllipseResizeThumbPositions(resizedBounds);
         }
 
         private void ArrowEndpointThumb_DragDelta(object sender, DragDeltaEventArgs e)
