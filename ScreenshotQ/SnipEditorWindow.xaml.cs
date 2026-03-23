@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Windows;
@@ -29,16 +30,23 @@ namespace ScreenshotQ
         }
 
         private const double MinSelectionSize = 12;
+        private const double MinShapeSize = 10;
 
         private readonly string _outputFolder;
         private readonly double _dpiScaleX;
         private readonly double _dpiScaleY;
         private readonly double _surfaceWidth;
         private readonly double _surfaceHeight;
+        private readonly HashSet<Shape> _editableShapes = new();
+        private readonly Dictionary<ShapePath, (Point Start, Point End)> _arrowAnchors = new();
         private EditorTool _currentTool = EditorTool.Select;
         private Point _dragStart;
         private bool _isDragging;
+        private bool _isMovingSelectedShape;
+        private Point _shapeMoveStart;
+        private (Point Start, Point End)? _movingArrowInitialAnchors;
         private Shape? _activeShape;
+        private Shape? _selectedShape;
         private Rect _selectionRect;
         private bool _hasSelection;
         private int _numberCounter = 1;
@@ -81,6 +89,7 @@ namespace ScreenshotQ
             SelectedPreview.Visibility = Visibility.Collapsed;
             ToolPanel.Visibility = Visibility.Collapsed;
             SetResizeThumbsVisibility(Visibility.Collapsed);
+            SetShapeResizeThumbsVisibility(Visibility.Collapsed);
 
             HintText.Text = "Drag to select an area. Press Esc to cancel.";
         }
@@ -136,6 +145,29 @@ namespace ScreenshotQ
                 return;
             }
 
+            if (TryFindEditableShape(point, out Shape hitShape))
+            {
+                SelectShape(hitShape);
+                return;
+            }
+
+            if (_selectedShape is not null && IsPointInsideShape(_selectedShape, point))
+            {
+                _isMovingSelectedShape = true;
+                _shapeMoveStart = point;
+                _movingArrowInitialAnchors = null;
+                if (_selectedShape is ShapePath arrow && _arrowAnchors.TryGetValue(arrow, out (Point Start, Point End) anchors))
+                {
+                    _movingArrowInitialAnchors = anchors;
+                }
+
+                OverlayCanvas.CaptureMouse();
+                HintText.Text = "Drag to move selected shape.";
+                return;
+            }
+
+            ClearSelectedShape();
+
             if (_currentTool == EditorTool.Text)
             {
                 InsertText(point);
@@ -171,12 +203,44 @@ namespace ScreenshotQ
 
         private void OverlayCanvas_MouseMove(object sender, MouseEventArgs e)
         {
-            if (!_isDragging)
+            Point point = e.GetPosition(OverlayCanvas);
+
+            if (_isMovingSelectedShape)
             {
+                if (_selectedShape is null)
+                {
+                    _isMovingSelectedShape = false;
+                    return;
+                }
+
+                Vector delta = point - _shapeMoveStart;
+                MoveSelectedShape(delta);
+                _shapeMoveStart = point;
                 return;
             }
 
-            Point point = e.GetPosition(OverlayCanvas);
+            if (!_isDragging)
+            {
+                if (e.LeftButton == MouseButtonState.Pressed)
+                {
+                    return;
+                }
+
+                if (TryFindEditableShape(point, out _))
+                {
+                    OverlayCanvas.Cursor = Cursors.SizeAll;
+                }
+                else if (_selectedShape is not null && IsPointInsideShape(_selectedShape, point))
+                {
+                    OverlayCanvas.Cursor = Cursors.SizeAll;
+                }
+                else
+                {
+                    OverlayCanvas.Cursor = Cursors.Cross;
+                }
+
+                return;
+            }
 
             if (_currentTool == EditorTool.Select)
             {
@@ -189,6 +253,15 @@ namespace ScreenshotQ
 
         private void OverlayCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
+            if (_isMovingSelectedShape)
+            {
+                _isMovingSelectedShape = false;
+                _movingArrowInitialAnchors = null;
+                OverlayCanvas.ReleaseMouseCapture();
+                HintText.Text = "Shape moved.";
+                return;
+            }
+
             if (!_isDragging)
             {
                 return;
@@ -208,7 +281,7 @@ namespace ScreenshotQ
                     _hasSelection = true;
                     ApplySelectedAreaVisual(dragRect);
                     PositionToolPanelNearSelection(dragRect);
-                    HintText.Text = string.Format(CultureInfo.InvariantCulture, "Selected area: {0:0} x {1:0}", _selectionRect.Width, _selectionRect.Height);
+                    HintText.Text = "Selection ready. Choose a tool and draw.";
                 }
                 else
                 {
@@ -217,6 +290,7 @@ namespace ScreenshotQ
                     SelectedPreview.Visibility = Visibility.Collapsed;
                     ToolPanel.Visibility = Visibility.Collapsed;
                     SetResizeThumbsVisibility(Visibility.Collapsed);
+                    ClearSelectedShape();
                     HintText.Text = "Selection is too small. Drag again.";
                 }
             }
@@ -225,6 +299,15 @@ namespace ScreenshotQ
                 if (dragRect.Width < 3 && dragRect.Height < 3)
                 {
                     OverlayCanvas.Children.Remove(_activeShape);
+                }
+                else
+                {
+                    _editableShapes.Add(_activeShape);
+                    if (_activeShape is ShapePath arrow)
+                    {
+                        _arrowAnchors[arrow] = (_dragStart, endPoint);
+                    }
+                    HintText.Text = "Shape created. Click its edge to resize or select.";
                 }
 
                 _activeShape = null;
@@ -240,21 +323,21 @@ namespace ScreenshotQ
                     Stroke = new SolidColorBrush(Color.FromRgb(244, 63, 94)),
                     Fill = new SolidColorBrush(Color.FromArgb(28, 244, 63, 94)),
                     StrokeThickness = 3,
-                    IsHitTestVisible = false
+                    IsHitTestVisible = true
                 },
                 EditorTool.Ellipse => new Ellipse
                 {
                     Stroke = new SolidColorBrush(Color.FromRgb(16, 185, 129)),
                     Fill = new SolidColorBrush(Color.FromArgb(28, 16, 185, 129)),
                     StrokeThickness = 3,
-                    IsHitTestVisible = false
+                    IsHitTestVisible = true
                 },
                 EditorTool.Arrow => new ShapePath
                 {
                     Stroke = new SolidColorBrush(Color.FromRgb(59, 130, 246)),
                     StrokeThickness = 3,
                     Fill = Brushes.Transparent,
-                    IsHitTestVisible = false
+                    IsHitTestVisible = true
                 },
                 _ => null
             };
@@ -543,7 +626,7 @@ namespace ScreenshotQ
             _selectionRect = new Rect(left, top, right - left, bottom - top);
             ApplySelectedAreaVisual(_selectionRect);
             PositionToolPanelNearSelection(_selectionRect);
-            HintText.Text = string.Format(CultureInfo.InvariantCulture, "Selected area: {0:0} x {1:0}", _selectionRect.Width, _selectionRect.Height);
+            HintText.Text = "Selection updated.";
         }
 
         private void UpdateResizeThumbPositions(Rect selection)
@@ -612,6 +695,323 @@ namespace ScreenshotQ
             return new Rect(left, top, width, height);
         }
 
+        private bool TryFindEditableShape(Point point, out Shape shape)
+        {
+            shape = null!;
+
+            for (int i = OverlayCanvas.Children.Count - 1; i >= 0; i--)
+            {
+                if (OverlayCanvas.Children[i] is not Shape candidate || !_editableShapes.Contains(candidate))
+                {
+                    continue;
+                }
+
+                if (IsPointNearShapeEdge(candidate, point, 8))
+                {
+                    shape = candidate;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool IsPointNearShapeEdge(Shape shape, Point point, double tolerance)
+        {
+            Rect bounds = GetShapeBounds(shape);
+            if (bounds.IsEmpty)
+            {
+                return false;
+            }
+
+            if (shape is ShapePath path)
+            {
+                Geometry? data = path.Data;
+                if (data is null)
+                {
+                    return false;
+                }
+
+                Pen pen = new(path.Stroke ?? Brushes.Transparent, Math.Max(2, shape.StrokeThickness + tolerance));
+                return data.StrokeContains(pen, point);
+            }
+
+            if (shape is Rectangle)
+            {
+                Rect outer = new(bounds.Left - tolerance, bounds.Top - tolerance, bounds.Width + (2 * tolerance), bounds.Height + (2 * tolerance));
+                Rect inner = new(
+                    bounds.Left + tolerance,
+                    bounds.Top + tolerance,
+                    Math.Max(0, bounds.Width - (2 * tolerance)),
+                    Math.Max(0, bounds.Height - (2 * tolerance)));
+                return outer.Contains(point) && !inner.Contains(point);
+            }
+
+            if (shape is Ellipse)
+            {
+                double radiusX = Math.Max(0.1, bounds.Width / 2);
+                double radiusY = Math.Max(0.1, bounds.Height / 2);
+                double centerX = bounds.Left + radiusX;
+                double centerY = bounds.Top + radiusY;
+                double nx = (point.X - centerX) / radiusX;
+                double ny = (point.Y - centerY) / radiusY;
+                double normalized = (nx * nx) + (ny * ny);
+
+                double outerX = radiusX + tolerance;
+                double outerY = radiusY + tolerance;
+                double innerX = Math.Max(0.1, radiusX - tolerance);
+                double innerY = Math.Max(0.1, radiusY - tolerance);
+                double nxOuter = (point.X - centerX) / outerX;
+                double nyOuter = (point.Y - centerY) / outerY;
+                double nxInner = (point.X - centerX) / innerX;
+                double nyInner = (point.Y - centerY) / innerY;
+                double outerValue = (nxOuter * nxOuter) + (nyOuter * nyOuter);
+                double innerValue = (nxInner * nxInner) + (nyInner * nyInner);
+
+                return outerValue <= 1.0 && innerValue >= 1.0 && normalized > 0;
+            }
+
+            return false;
+        }
+
+        private bool IsPointInsideShape(Shape shape, Point point)
+        {
+            if (shape is ShapePath path)
+            {
+                if (path.Data is null)
+                {
+                    return false;
+                }
+
+                Pen pen = new(path.Stroke ?? Brushes.Transparent, Math.Max(6, shape.StrokeThickness + 4));
+                return path.Data.StrokeContains(pen, point);
+            }
+
+            return GetShapeBounds(shape).Contains(point);
+        }
+
+        private void SelectShape(Shape shape)
+        {
+            _selectedShape = shape;
+            UpdateShapeResizeThumbPositions(GetShapeBounds(shape));
+            SetShapeResizeThumbsVisibility(Visibility.Visible);
+            HintText.Text = "Shape selected. Drag corners to resize.";
+        }
+
+        private void ClearSelectedShape()
+        {
+            _selectedShape = null;
+            SetShapeResizeThumbsVisibility(Visibility.Collapsed);
+        }
+
+        private void DeleteSelectedShape()
+        {
+            if (_selectedShape is null)
+            {
+                return;
+            }
+
+            Shape target = _selectedShape;
+            ClearSelectedShape();
+            _editableShapes.Remove(target);
+
+            if (target is ShapePath arrow)
+            {
+                _arrowAnchors.Remove(arrow);
+            }
+
+            OverlayCanvas.Children.Remove(target);
+            HintText.Text = "Shape deleted.";
+        }
+
+        private Rect GetShapeBounds(Shape shape)
+        {
+            if (shape is ShapePath path)
+            {
+                return path.Data?.Bounds ?? Rect.Empty;
+            }
+
+            double left = Canvas.GetLeft(shape);
+            double top = Canvas.GetTop(shape);
+
+            if (double.IsNaN(left))
+            {
+                left = 0;
+            }
+
+            if (double.IsNaN(top))
+            {
+                top = 0;
+            }
+
+            return new Rect(left, top, Math.Max(MinShapeSize, shape.Width), Math.Max(MinShapeSize, shape.Height));
+        }
+
+        private void UpdateShapeResizeThumbPositions(Rect bounds)
+        {
+            if (bounds.IsEmpty)
+            {
+                SetShapeResizeThumbsVisibility(Visibility.Collapsed);
+                return;
+            }
+
+            SetThumbPosition(ShapeTopLeftThumb, bounds.Left, bounds.Top);
+            SetThumbPosition(ShapeTopRightThumb, bounds.Right, bounds.Top);
+            SetThumbPosition(ShapeBottomRightThumb, bounds.Right, bounds.Bottom);
+            SetThumbPosition(ShapeBottomLeftThumb, bounds.Left, bounds.Bottom);
+        }
+
+        private void SetShapeResizeThumbsVisibility(Visibility visibility)
+        {
+            ShapeTopLeftThumb.Visibility = visibility;
+            ShapeTopRightThumb.Visibility = visibility;
+            ShapeBottomRightThumb.Visibility = visibility;
+            ShapeBottomLeftThumb.Visibility = visibility;
+        }
+
+        private void ShapeResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
+        {
+            if (_selectedShape is null || sender is not Thumb thumb || thumb.Tag is not string tag)
+            {
+                return;
+            }
+
+            Rect currentBounds = GetShapeBounds(_selectedShape);
+            if (currentBounds.IsEmpty)
+            {
+                return;
+            }
+
+            double left = currentBounds.Left;
+            double top = currentBounds.Top;
+            double right = currentBounds.Right;
+            double bottom = currentBounds.Bottom;
+
+            if (tag.Contains("Left", StringComparison.Ordinal))
+            {
+                left = Clamp(left + e.HorizontalChange, 0, right - MinShapeSize);
+            }
+
+            if (tag.Contains("Right", StringComparison.Ordinal))
+            {
+                right = Clamp(right + e.HorizontalChange, left + MinShapeSize, _surfaceWidth);
+            }
+
+            if (tag.Contains("Top", StringComparison.Ordinal))
+            {
+                top = Clamp(top + e.VerticalChange, 0, bottom - MinShapeSize);
+            }
+
+            if (tag.Contains("Bottom", StringComparison.Ordinal))
+            {
+                bottom = Clamp(bottom + e.VerticalChange, top + MinShapeSize, _surfaceHeight);
+            }
+
+            Rect resizedBounds = new(left, top, right - left, bottom - top);
+            ApplyShapeBounds(_selectedShape, currentBounds, resizedBounds);
+            UpdateShapeResizeThumbPositions(resizedBounds);
+        }
+
+        private void MoveSelectedShape(Vector delta)
+        {
+            if (_selectedShape is null)
+            {
+                return;
+            }
+
+            Rect currentBounds = GetShapeBounds(_selectedShape);
+            if (currentBounds.IsEmpty)
+            {
+                return;
+            }
+
+            double moveX = delta.X;
+            double moveY = delta.Y;
+
+            if (currentBounds.Left + moveX < 0)
+            {
+                moveX = -currentBounds.Left;
+            }
+
+            if (currentBounds.Top + moveY < 0)
+            {
+                moveY = -currentBounds.Top;
+            }
+
+            if (currentBounds.Right + moveX > _surfaceWidth)
+            {
+                moveX = _surfaceWidth - currentBounds.Right;
+            }
+
+            if (currentBounds.Bottom + moveY > _surfaceHeight)
+            {
+                moveY = _surfaceHeight - currentBounds.Bottom;
+            }
+
+            if (_selectedShape is Rectangle || _selectedShape is Ellipse)
+            {
+                Canvas.SetLeft(_selectedShape, currentBounds.Left + moveX);
+                Canvas.SetTop(_selectedShape, currentBounds.Top + moveY);
+            }
+            else if (_selectedShape is ShapePath arrow)
+            {
+                if (!_arrowAnchors.TryGetValue(arrow, out (Point Start, Point End) anchors) &&
+                    _movingArrowInitialAnchors is not null)
+                {
+                    anchors = _movingArrowInitialAnchors.Value;
+                }
+
+                if (_arrowAnchors.TryGetValue(arrow, out anchors) || _movingArrowInitialAnchors is not null)
+                {
+                    if (!_arrowAnchors.TryGetValue(arrow, out anchors))
+                    {
+                        anchors = _movingArrowInitialAnchors!.Value;
+                    }
+
+                    Point start = new(anchors.Start.X + moveX, anchors.Start.Y + moveY);
+                    Point end = new(anchors.End.X + moveX, anchors.End.Y + moveY);
+                    arrow.Data = BuildArrowGeometry(start, end);
+                    _arrowAnchors[arrow] = (start, end);
+                }
+            }
+
+            UpdateShapeResizeThumbPositions(GetShapeBounds(_selectedShape));
+        }
+
+        private void ApplyShapeBounds(Shape shape, Rect oldBounds, Rect newBounds)
+        {
+            if (shape is Rectangle || shape is Ellipse)
+            {
+                Canvas.SetLeft(shape, newBounds.Left);
+                Canvas.SetTop(shape, newBounds.Top);
+                shape.Width = newBounds.Width;
+                shape.Height = newBounds.Height;
+                return;
+            }
+
+            if (shape is ShapePath arrow && _arrowAnchors.TryGetValue(arrow, out (Point Start, Point End) anchor))
+            {
+                Point start = MapPointBetweenRects(anchor.Start, oldBounds, newBounds);
+                Point end = MapPointBetweenRects(anchor.End, oldBounds, newBounds);
+                arrow.Data = BuildArrowGeometry(start, end);
+                _arrowAnchors[arrow] = (start, end);
+            }
+        }
+
+        private static Point MapPointBetweenRects(Point point, Rect oldBounds, Rect newBounds)
+        {
+            double normalizedX = oldBounds.Width <= 0.001
+                ? 0.5
+                : (point.X - oldBounds.Left) / oldBounds.Width;
+            double normalizedY = oldBounds.Height <= 0.001
+                ? 0.5
+                : (point.Y - oldBounds.Top) / oldBounds.Height;
+
+            return new Point(
+                newBounds.Left + (normalizedX * newBounds.Width),
+                newBounds.Top + (normalizedY * newBounds.Height));
+        }
+
         private void CopyButton_Click(object sender, RoutedEventArgs e)
         {
             try
@@ -669,12 +1069,14 @@ namespace ScreenshotQ
             Visibility previewVisibility = SelectedPreview.Visibility;
             Visibility toolPanelVisibility = ToolPanel.Visibility;
             Visibility resizeThumbVisibility = TopLeftThumb.Visibility;
+            Visibility shapeResizeThumbVisibility = ShapeTopLeftThumb.Visibility;
             Visibility dimOverlayVisibility = DimOverlay.Visibility;
             Geometry? previewClip = SelectedPreview.Clip;
 
             SelectionRectangle.Visibility = Visibility.Collapsed;
             ToolPanel.Visibility = Visibility.Collapsed;
             SetResizeThumbsVisibility(Visibility.Collapsed);
+            SetShapeResizeThumbsVisibility(Visibility.Collapsed);
 
             if (IsFullSurfaceSelection(selection))
             {
@@ -717,6 +1119,7 @@ namespace ScreenshotQ
                 SelectedPreview.Clip = previewClip;
                 ToolPanel.Visibility = toolPanelVisibility;
                 SetResizeThumbsVisibility(resizeThumbVisibility);
+                SetShapeResizeThumbsVisibility(shapeResizeThumbVisibility);
                 DimOverlay.Visibility = dimOverlayVisibility;
             }
         }
@@ -737,6 +1140,13 @@ namespace ScreenshotQ
 
         private void Window_KeyDown(object sender, KeyEventArgs e)
         {
+            if (e.Key == Key.Delete)
+            {
+                DeleteSelectedShape();
+                e.Handled = true;
+                return;
+            }
+
             if (e.Key == Key.Escape)
             {
                 DialogResult = false;

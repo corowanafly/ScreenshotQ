@@ -133,6 +133,11 @@
                 <Thumb x:Name="BottomThumb" Tag="Bottom" Width="10" Height="10" Cursor="SizeNS" Background="#E2E8F0" BorderBrush="#0EA5E9" BorderThickness="1" DragDelta="ResizeThumb_DragDelta" Visibility="Collapsed" Panel.ZIndex="1001"/>
                 <Thumb x:Name="BottomLeftThumb" Tag="BottomLeft" Width="10" Height="10" Cursor="SizeNESW" Background="#E2E8F0" BorderBrush="#0EA5E9" BorderThickness="1" DragDelta="ResizeThumb_DragDelta" Visibility="Collapsed" Panel.ZIndex="1001"/>
                 <Thumb x:Name="LeftThumb" Tag="Left" Width="10" Height="10" Cursor="SizeWE" Background="#E2E8F0" BorderBrush="#0EA5E9" BorderThickness="1" DragDelta="ResizeThumb_DragDelta" Visibility="Collapsed" Panel.ZIndex="1001"/>
+
+                <Thumb x:Name="ShapeTopLeftThumb" Tag="ShapeTopLeft" Width="10" Height="10" Cursor="SizeNWSE" Background="#F8FAFC" BorderBrush="#F97316" BorderThickness="1" DragDelta="ShapeResizeThumb_DragDelta" Visibility="Collapsed" Panel.ZIndex="1002"/>
+                <Thumb x:Name="ShapeTopRightThumb" Tag="ShapeTopRight" Width="10" Height="10" Cursor="SizeNESW" Background="#F8FAFC" BorderBrush="#F97316" BorderThickness="1" DragDelta="ShapeResizeThumb_DragDelta" Visibility="Collapsed" Panel.ZIndex="1002"/>
+                <Thumb x:Name="ShapeBottomRightThumb" Tag="ShapeBottomRight" Width="10" Height="10" Cursor="SizeNWSE" Background="#F8FAFC" BorderBrush="#F97316" BorderThickness="1" DragDelta="ShapeResizeThumb_DragDelta" Visibility="Collapsed" Panel.ZIndex="1002"/>
+                <Thumb x:Name="ShapeBottomLeftThumb" Tag="ShapeBottomLeft" Width="10" Height="10" Cursor="SizeNESW" Background="#F8FAFC" BorderBrush="#F97316" BorderThickness="1" DragDelta="ShapeResizeThumb_DragDelta" Visibility="Collapsed" Panel.ZIndex="1002"/>
             </Canvas>
         </Grid>
 
