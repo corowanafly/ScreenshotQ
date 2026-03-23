@@ -13,9 +13,9 @@
         KeyDown="Window_KeyDown">
     <Window.Resources>
         <Style x:Key="ToolbarIconToggleStyle" TargetType="ToggleButton">
-            <Setter Property="Width" Value="40"/>
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Width" Value="22"/>
+            <Setter Property="Height" Value="22"/>
+            <Setter Property="Margin" Value="0,0,4,0"/>
             <Setter Property="Background" Value="#223047"/>
             <Setter Property="BorderBrush" Value="#334155"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -27,7 +27,7 @@
                         <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8">
+                                CornerRadius="4">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -47,9 +47,9 @@
         </Style>
 
         <Style x:Key="ToolbarActionButtonStyle" TargetType="Button">
-            <Setter Property="Width" Value="40"/>
-            <Setter Property="Height" Value="40"/>
-            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Width" Value="22"/>
+            <Setter Property="Height" Value="22"/>
+            <Setter Property="Margin" Value="0,0,4,0"/>
             <Setter Property="Background" Value="#162236"/>
             <Setter Property="BorderBrush" Value="#334155"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -61,7 +61,7 @@
                         <Border Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8">
+                                CornerRadius="4">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                     </ControlTemplate>
@@ -154,7 +154,7 @@
                 HorizontalAlignment="Left"
                 Margin="12"
                 Background="#EE0F172A"
-                Padding="12"
+            Padding="6"
                 CornerRadius="12"
                 Visibility="Collapsed">
             <Grid>
@@ -165,23 +165,23 @@
                 <Grid Grid.Row="0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="20"/>
+                        <ColumnDefinition Width="10"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0" Orientation="Horizontal">
                         <ToggleButton x:Name="RectToolButton" Style="{StaticResource ToolbarIconToggleStyle}" Click="ToolButton_Click" ToolTip="Draw rectangle">
-                            <Viewbox Width="18" Height="18">
+                            <Viewbox Width="12" Height="12">
                                 <Rectangle Width="14" Height="10" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.8" RadiusX="1" RadiusY="1" Fill="Transparent"/>
                             </Viewbox>
                         </ToggleButton>
                         <ToggleButton x:Name="EllipseToolButton" Style="{StaticResource ToolbarIconToggleStyle}" Click="ToolButton_Click" ToolTip="Draw ellipse">
-                            <Viewbox Width="18" Height="18">
+                            <Viewbox Width="12" Height="12">
                                 <Ellipse Width="14" Height="10" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}" StrokeThickness="1.8" Fill="Transparent"/>
                             </Viewbox>
                         </ToggleButton>
                         <ToggleButton x:Name="ArrowToolButton" Style="{StaticResource ToolbarIconToggleStyle}" Click="ToolButton_Click" ToolTip="Draw arrow">
-                            <Viewbox Width="18" Height="18">
+                            <Viewbox Width="12" Height="12">
                                 <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
                                       StrokeThickness="1.8"
                                       StrokeStartLineCap="Round"
@@ -191,43 +191,54 @@
                         </ToggleButton>
                         <ToggleButton x:Name="TextToolButton" Style="{StaticResource ToolbarIconToggleStyle}" Click="ToolButton_Click" ToolTip="Insert text">
                             <TextBlock Text="T"
-                                       FontSize="16"
+                                       FontSize="12"
                                        FontWeight="Bold"
                                        Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"/>
                         </ToggleButton>
                         <ToggleButton x:Name="NumberToolButton" Style="{StaticResource ToolbarIconToggleStyle}" Margin="0" Click="ToolButton_Click" ToolTip="Insert numbered marker">
                             <TextBlock Text="#"
-                                       FontSize="16"
+                                       FontSize="12"
                                        FontWeight="Bold"
                                        Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"/>
                         </ToggleButton>
                     </StackPanel>
 
                     <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
-                        <Button Style="{StaticResource ToolbarActionButtonStyle}" Click="CopyButton_Click" ToolTip="Copy image to clipboard">
-                            <Viewbox Width="18" Height="18">
-                                <Canvas Width="18" Height="18">
-                                    <Rectangle Canvas.Left="6" Canvas.Top="3" Width="8" Height="9" RadiusX="1" RadiusY="1" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" Fill="Transparent"/>
-                                    <Rectangle Canvas.Left="3" Canvas.Top="6" Width="8" Height="9" RadiusX="1" RadiusY="1" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" Fill="Transparent"/>
-                                </Canvas>
-                            </Viewbox>
-                        </Button>
-                        <Button Style="{StaticResource ToolbarActionButtonStyle}" Click="CancelButton_Click" ToolTip="Cancel capture">
-                            <Viewbox Width="18" Height="18">
+                        <Button Style="{StaticResource ToolbarActionButtonStyle}" Click="UndoButton_Click" ToolTip="Undo last change">
+                            <Viewbox Width="12" Height="12">
                                 <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
                                       StrokeThickness="1.8"
                                       StrokeStartLineCap="Round"
                                       StrokeEndLineCap="Round"
-                                      Data="M4,4 L14,14 M14,4 L4,14"/>
+                                      Data="M9,4 C6,4 3.8,6.2 3.8,9.2 M3.8,9.2 L3.8,5.6 M3.8,9.2 L7.4,9.2 M9,4 C12.3,4 14.8,6.7 14.8,10 C14.8,13.3 12.3,16 9,16"/>
                             </Viewbox>
                         </Button>
-                        <Button Style="{StaticResource ToolbarPrimaryActionButtonStyle}" Margin="4,0,0,0" Click="SaveButton_Click" ToolTip="Save screenshot">
-                            <Viewbox Width="18" Height="18">
+                        <Button Style="{StaticResource ToolbarPrimaryActionButtonStyle}" Margin="3,0,0,0" Click="SaveButton_Click" ToolTip="Save screenshot and copy to clipboard">
+                            <Viewbox Width="12" Height="12">
                                 <Canvas Width="18" Height="18">
                                     <Rectangle Canvas.Left="3" Canvas.Top="2" Width="12" Height="14" RadiusX="1" RadiusY="1" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.6" Fill="Transparent"/>
                                     <Rectangle Canvas.Left="6" Canvas.Top="4" Width="6" Height="3" Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"/>
                                     <Rectangle Canvas.Left="6" Canvas.Top="10" Width="6" Height="4" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="1.4" Fill="Transparent"/>
                                 </Canvas>
+                            </Viewbox>
+                        </Button>
+                        <Button Style="{StaticResource ToolbarActionButtonStyle}" Margin="3,0,0,0" Click="CopyButton_Click" ToolTip="Copy image and finish">
+                            <Viewbox Width="12" Height="12">
+                                <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="2.2"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      Data="M3.5,9.5 L7.3,13 L14.5,5.8"/>
+                            </Viewbox>
+                        </Button>
+                        <Button Style="{StaticResource ToolbarActionButtonStyle}" Margin="3,0,0,0" Click="CancelButton_Click" ToolTip="Cancel capture">
+                            <Viewbox Width="12" Height="12">
+                                <Path Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="1.8"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      Data="M4,4 L14,14 M14,4 L4,14"/>
                             </Viewbox>
                         </Button>
                     </StackPanel>
@@ -238,6 +249,7 @@
                            Margin="0,10,0,0"
                            VerticalAlignment="Center"
                            Foreground="#E2E8F0"
+                           Visibility="Collapsed"
                            Text="Drag to select an area. Then annotate and save."/>
             </Grid>
         </Border>

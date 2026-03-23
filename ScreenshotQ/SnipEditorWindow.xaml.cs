@@ -53,6 +53,7 @@ namespace ScreenshotQ
         private bool _hasSelection;
         private int _numberCounter = 1;
         private readonly HashSet<Border> _editableTextBorders = new();
+        private readonly Stack<Action> _undoActions = new();
         private Border? _selectedTextBorder;
         private bool _isMovingTextBorder;
         private Point _textBorderMoveStart;
@@ -358,11 +359,30 @@ namespace ScreenshotQ
                 }
                 else
                 {
-                    _editableShapes.Add(_activeShape);
-                    if (_activeShape is ShapePath arrow)
+                    Shape createdShape = _activeShape;
+                    _editableShapes.Add(createdShape);
+
+                    if (createdShape is ShapePath arrow)
                     {
                         _arrowAnchors[arrow] = (_dragStart, endPoint);
                     }
+
+                    RegisterUndo(() =>
+                    {
+                        if (ReferenceEquals(_selectedShape, createdShape))
+                        {
+                            ClearSelectedShape();
+                        }
+
+                        _editableShapes.Remove(createdShape);
+                        if (createdShape is ShapePath createdArrow)
+                        {
+                            _arrowAnchors.Remove(createdArrow);
+                        }
+
+                        OverlayCanvas.Children.Remove(createdShape);
+                    });
+
                     HintText.Text = "Shape created. Click its edge to resize or select.";
                 }
 
@@ -512,6 +532,17 @@ namespace ScreenshotQ
             _editableTextBorders.Add(container);
             SelectTextBorder(container);
 
+            RegisterUndo(() =>
+            {
+                if (ReferenceEquals(_selectedTextBorder, container))
+                {
+                    ClearSelectedTextBorder();
+                }
+
+                OverlayCanvas.Children.Remove(container);
+                _editableTextBorders.Remove(container);
+            });
+
             textBox.LostFocus += (_, _) => CommitTextBorder(container);
             textBox.TextChanged += (_, _) => AutoSizeTextBorder(container);
             textBox.KeyDown += (_, ke) =>
@@ -559,6 +590,12 @@ namespace ScreenshotQ
             OverlayCanvas.Children.Add(marker);
             Canvas.SetLeft(marker, point.X - 14);
             Canvas.SetTop(marker, point.Y - 14);
+
+            RegisterUndo(() =>
+            {
+                OverlayCanvas.Children.Remove(marker);
+                _numberCounter = Math.Max(1, _numberCounter - 1);
+            });
         }
 
         private void CommitTextBorder(Border container)
@@ -1098,9 +1135,26 @@ namespace ScreenshotQ
             if (_selectedTextBorder is not null)
             {
                 Border borderToDelete = _selectedTextBorder;
+                double left = Canvas.GetLeft(borderToDelete);
+                double top = Canvas.GetTop(borderToDelete);
+
                 ClearSelectedTextBorder();
                 _editableTextBorders.Remove(borderToDelete);
                 OverlayCanvas.Children.Remove(borderToDelete);
+
+                RegisterUndo(() =>
+                {
+                    if (!OverlayCanvas.Children.Contains(borderToDelete))
+                    {
+                        OverlayCanvas.Children.Add(borderToDelete);
+                    }
+
+                    _editableTextBorders.Add(borderToDelete);
+                    Canvas.SetLeft(borderToDelete, left);
+                    Canvas.SetTop(borderToDelete, top);
+                    SelectTextBorder(borderToDelete);
+                });
+
                 HintText.Text = "Text deleted.";
                 return;
             }
@@ -1111,15 +1165,45 @@ namespace ScreenshotQ
             }
 
             Shape target = _selectedShape;
+            Rect targetBounds = GetShapeBounds(target);
+            (Point Start, Point End)? deletedArrowAnchors = null;
+            if (target is ShapePath arrow && _arrowAnchors.TryGetValue(arrow, out (Point Start, Point End) anchor))
+            {
+                deletedArrowAnchors = anchor;
+            }
+
             ClearSelectedShape();
             _editableShapes.Remove(target);
 
-            if (target is ShapePath arrow)
+            if (target is ShapePath removedArrow)
             {
-                _arrowAnchors.Remove(arrow);
+                _arrowAnchors.Remove(removedArrow);
             }
 
             OverlayCanvas.Children.Remove(target);
+
+            RegisterUndo(() =>
+            {
+                if (!OverlayCanvas.Children.Contains(target))
+                {
+                    OverlayCanvas.Children.Add(target);
+                }
+
+                _editableShapes.Add(target);
+                if (target is ShapePath restoredArrow && deletedArrowAnchors is not null)
+                {
+                    _arrowAnchors[restoredArrow] = deletedArrowAnchors.Value;
+                }
+
+                if (target is Rectangle || target is Ellipse)
+                {
+                    Canvas.SetLeft(target, targetBounds.Left);
+                    Canvas.SetTop(target, targetBounds.Top);
+                }
+
+                SelectShape(target);
+            });
+
             HintText.Text = "Shape deleted.";
         }
 
@@ -1471,13 +1555,38 @@ namespace ScreenshotQ
                 newBounds.Top + (normalizedY * newBounds.Height));
         }
 
+        private void RegisterUndo(Action undoAction)
+        {
+            _undoActions.Push(undoAction);
+        }
+
+        private void UndoLastAction()
+        {
+            if (_undoActions.Count == 0)
+            {
+                HintText.Text = "Nothing to undo.";
+                return;
+            }
+
+            Action undoAction = _undoActions.Pop();
+            undoAction();
+            HintText.Text = "Undone.";
+        }
+
+        private void UndoButton_Click(object sender, RoutedEventArgs e)
+        {
+            UndoLastAction();
+        }
+
         private void CopyButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
                 BitmapSource image = RenderSelectionBitmap(GetExportSelection());
                 Clipboard.SetImage(image);
-                HintText.Text = "Copied to clipboard.";
+                SavedFilePath = null;
+                DialogResult = true;
+                Close();
             }
             catch (Exception ex)
             {
@@ -1489,7 +1598,9 @@ namespace ScreenshotQ
         {
             try
             {
-                SaveSelectionToFile(GetExportSelection());
+                BitmapSource image = RenderSelectionBitmap(GetExportSelection());
+                SaveSelectionToFile(image);
+                Clipboard.SetImage(image);
                 DialogResult = true;
                 Close();
             }
@@ -1499,15 +1610,13 @@ namespace ScreenshotQ
             }
         }
 
-        private void SaveSelectionToFile(Rect selection)
+        private void SaveSelectionToFile(BitmapSource image)
         {
-            BitmapSource cropped = RenderSelectionBitmap(selection);
-
             string fileName = DateTime.Now.ToString("yyyyMMdd_HHmmss") + "_edited.png";
             string filePath = System.IO.Path.Combine(_outputFolder, fileName);
 
             PngBitmapEncoder encoder = new();
-            encoder.Frames.Add(BitmapFrame.Create(cropped));
+            encoder.Frames.Add(BitmapFrame.Create(image));
 
             using FileStream stream = new(filePath, FileMode.Create, FileAccess.Write, FileShare.None);
             encoder.Save(stream);
@@ -1607,6 +1716,13 @@ namespace ScreenshotQ
         {
             if (Keyboard.FocusedElement is TextBox)
             {
+                return;
+            }
+
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && e.Key == Key.Z)
+            {
+                UndoLastAction();
+                e.Handled = true;
                 return;
             }
 
