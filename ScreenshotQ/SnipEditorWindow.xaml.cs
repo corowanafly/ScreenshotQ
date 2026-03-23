@@ -33,6 +33,7 @@ namespace ScreenshotQ
         private const double MinShapeSize = 10;
         private const double MinTextWidth = 100;
         private const double MinTextHeight = 36;
+        private static readonly Color DefaultAnnotationColor = Color.FromRgb(244, 63, 94);
 
         private readonly string _outputFolder;
         private readonly double _dpiScaleX;
@@ -57,6 +58,7 @@ namespace ScreenshotQ
         private Border? _selectedTextBorder;
         private bool _isMovingTextBorder;
         private Point _textBorderMoveStart;
+        private Color _currentAnnotationColor = DefaultAnnotationColor;
 
         public string? SavedFilePath { get; private set; }
 
@@ -99,6 +101,7 @@ namespace ScreenshotQ
             SetShapeResizeThumbsVisibility(Visibility.Collapsed);
             SetArrowEndpointThumbsVisibility(Visibility.Collapsed);
             SetTextResizeThumbsVisibility(Visibility.Collapsed);
+            UpdateCurrentColorSwatch();
 
             HintText.Text = "Drag to select an area. Press Esc to cancel.";
         }
@@ -392,25 +395,27 @@ namespace ScreenshotQ
 
         private Shape? CreateShapeForTool(EditorTool tool)
         {
+            Brush strokeBrush = new SolidColorBrush(_currentAnnotationColor);
+
             return tool switch
             {
                 EditorTool.Rectangle => new Rectangle
                 {
-                    Stroke = new SolidColorBrush(Color.FromRgb(244, 63, 94)),
+                    Stroke = strokeBrush,
                     Fill = Brushes.Transparent,
                     StrokeThickness = 3,
                     IsHitTestVisible = true
                 },
                 EditorTool.Ellipse => new Ellipse
                 {
-                    Stroke = new SolidColorBrush(Color.FromRgb(16, 185, 129)),
+                    Stroke = strokeBrush,
                     Fill = Brushes.Transparent,
                     StrokeThickness = 3,
                     IsHitTestVisible = true
                 },
                 EditorTool.Arrow => new ShapePath
                 {
-                    Stroke = new SolidColorBrush(Color.FromRgb(59, 130, 246)),
+                    Stroke = strokeBrush,
                     StrokeThickness = 3,
                     Fill = Brushes.Transparent,
                     IsHitTestVisible = true
@@ -499,7 +504,7 @@ namespace ScreenshotQ
         {
             TextBox textBox = new()
             {
-                Foreground = Brushes.White,
+                Foreground = new SolidColorBrush(_currentAnnotationColor),
                 Background = Brushes.Transparent,
                 BorderThickness = new Thickness(0),
                 FontSize = 14,
@@ -571,8 +576,8 @@ namespace ScreenshotQ
 
             marker.Children.Add(new Ellipse
             {
-                Fill = new SolidColorBrush(Color.FromRgb(245, 158, 11)),
-                Stroke = new SolidColorBrush(Color.FromRgb(180, 83, 9)),
+                Fill = new SolidColorBrush(_currentAnnotationColor),
+                Stroke = new SolidColorBrush(DarkenColor(_currentAnnotationColor, 0.68)),
                 StrokeThickness = 2
             });
 
@@ -1558,6 +1563,60 @@ namespace ScreenshotQ
         private void RegisterUndo(Action undoAction)
         {
             _undoActions.Push(undoAction);
+        }
+
+        private void ColorButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (FindResource("ColorPickerMenu") is not ContextMenu colorMenu)
+            {
+                return;
+            }
+
+            colorMenu.PlacementTarget = ColorButton;
+            colorMenu.IsOpen = true;
+        }
+
+        private void ColorMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not MenuItem menuItem || menuItem.Tag is not string rawColor)
+            {
+                return;
+            }
+
+            if (ColorConverter.ConvertFromString(rawColor) is not Color selectedColor)
+            {
+                return;
+            }
+
+            _currentAnnotationColor = selectedColor;
+            UpdateCurrentColorSwatch();
+            ApplyCurrentColorToSelection();
+        }
+
+        private void ApplyCurrentColorToSelection()
+        {
+            if (_selectedShape is not null)
+            {
+                _selectedShape.Stroke = new SolidColorBrush(_currentAnnotationColor);
+            }
+
+            if (_selectedTextBorder?.Child is TextBox textBox)
+            {
+                textBox.Foreground = new SolidColorBrush(_currentAnnotationColor);
+            }
+        }
+
+        private void UpdateCurrentColorSwatch()
+        {
+            CurrentColorSwatch.Fill = new SolidColorBrush(_currentAnnotationColor);
+        }
+
+        private static Color DarkenColor(Color color, double factor)
+        {
+            return Color.FromRgb(
+                (byte)Math.Clamp((int)(color.R * factor), 0, 255),
+                (byte)Math.Clamp((int)(color.G * factor), 0, 255),
+                (byte)Math.Clamp((int)(color.B * factor), 0, 255));
         }
 
         private void UndoLastAction()

@@ -12,6 +12,39 @@
         Background="#1A1A1A"
         KeyDown="Window_KeyDown">
     <Window.Resources>
+        <ContextMenu x:Key="ColorPickerMenu">
+            <MenuItem Header="Red" Tag="#F43F5E" Click="ColorMenuItem_Click">
+                <MenuItem.Icon>
+                    <Border Width="12" Height="12" Background="#F43F5E" CornerRadius="2"/>
+                </MenuItem.Icon>
+            </MenuItem>
+            <MenuItem Header="Orange" Tag="#F97316" Click="ColorMenuItem_Click">
+                <MenuItem.Icon>
+                    <Border Width="12" Height="12" Background="#F97316" CornerRadius="2"/>
+                </MenuItem.Icon>
+            </MenuItem>
+            <MenuItem Header="Green" Tag="#10B981" Click="ColorMenuItem_Click">
+                <MenuItem.Icon>
+                    <Border Width="12" Height="12" Background="#10B981" CornerRadius="2"/>
+                </MenuItem.Icon>
+            </MenuItem>
+            <MenuItem Header="Blue" Tag="#3B82F6" Click="ColorMenuItem_Click">
+                <MenuItem.Icon>
+                    <Border Width="12" Height="12" Background="#3B82F6" CornerRadius="2"/>
+                </MenuItem.Icon>
+            </MenuItem>
+            <MenuItem Header="Purple" Tag="#8B5CF6" Click="ColorMenuItem_Click">
+                <MenuItem.Icon>
+                    <Border Width="12" Height="12" Background="#8B5CF6" CornerRadius="2"/>
+                </MenuItem.Icon>
+            </MenuItem>
+            <MenuItem Header="White" Tag="#FFFFFF" Click="ColorMenuItem_Click">
+                <MenuItem.Icon>
+                    <Border Width="12" Height="12" Background="#FFFFFF" BorderBrush="#94A3B8" BorderThickness="1" CornerRadius="2"/>
+                </MenuItem.Icon>
+            </MenuItem>
+        </ContextMenu>
+
         <Style x:Key="ToolbarIconToggleStyle" TargetType="ToggleButton">
             <Setter Property="Width" Value="22"/>
             <Setter Property="Height" Value="22"/>
@@ -212,6 +245,9 @@
                                       StrokeEndLineCap="Round"
                                       Data="M9,4 C6,4 3.8,6.2 3.8,9.2 M3.8,9.2 L3.8,5.6 M3.8,9.2 L7.4,9.2 M9,4 C12.3,4 14.8,6.7 14.8,10 C14.8,13.3 12.3,16 9,16"/>
                             </Viewbox>
+                        </Button>
+                        <Button x:Name="ColorButton" Style="{StaticResource ToolbarActionButtonStyle}" Click="ColorButton_Click" ToolTip="Choose annotation color">
+                            <Ellipse x:Name="CurrentColorSwatch" Width="12" Height="12" Fill="#F43F5E" Stroke="#E2E8F0" StrokeThickness="1"/>
                         </Button>
                         <Button Style="{StaticResource ToolbarPrimaryActionButtonStyle}" Margin="3,0,0,0" Click="SaveButton_Click" ToolTip="Save screenshot and copy to clipboard">
                             <Viewbox Width="12" Height="12">
