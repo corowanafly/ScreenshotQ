@@ -90,6 +90,7 @@ namespace ScreenshotQ
             ToolPanel.Visibility = Visibility.Collapsed;
             SetResizeThumbsVisibility(Visibility.Collapsed);
             SetShapeResizeThumbsVisibility(Visibility.Collapsed);
+            SetArrowEndpointThumbsVisibility(Visibility.Collapsed);
 
             HintText.Text = "Drag to select an area. Press Esc to cancel.";
         }
@@ -145,12 +146,6 @@ namespace ScreenshotQ
                 return;
             }
 
-            if (TryFindEditableShape(point, out Shape hitShape))
-            {
-                SelectShape(hitShape);
-                return;
-            }
-
             if (_selectedShape is not null && IsPointInsideShape(_selectedShape, point))
             {
                 _isMovingSelectedShape = true;
@@ -163,6 +158,12 @@ namespace ScreenshotQ
 
                 OverlayCanvas.CaptureMouse();
                 HintText.Text = "Drag to move selected shape.";
+                return;
+            }
+
+            if (TryFindEditableShape(point, out Shape hitShape))
+            {
+                SelectShape(hitShape);
                 return;
             }
 
@@ -793,15 +794,23 @@ namespace ScreenshotQ
         private void SelectShape(Shape shape)
         {
             _selectedShape = shape;
-            UpdateShapeResizeThumbPositions(GetShapeBounds(shape));
-            SetShapeResizeThumbsVisibility(Visibility.Visible);
-            HintText.Text = "Shape selected. Drag corners to resize.";
+            UpdateSelectedShapeHandles();
+
+            if (shape is ShapePath)
+            {
+                HintText.Text = "Arrow selected. Drag start/end points to resize.";
+            }
+            else
+            {
+                HintText.Text = "Shape selected. Drag corners to resize.";
+            }
         }
 
         private void ClearSelectedShape()
         {
             _selectedShape = null;
             SetShapeResizeThumbsVisibility(Visibility.Collapsed);
+            SetArrowEndpointThumbsVisibility(Visibility.Collapsed);
         }
 
         private void DeleteSelectedShape()
@@ -861,6 +870,36 @@ namespace ScreenshotQ
             SetThumbPosition(ShapeBottomLeftThumb, bounds.Left, bounds.Bottom);
         }
 
+        private void UpdateSelectedShapeHandles()
+        {
+            if (_selectedShape is null)
+            {
+                SetShapeResizeThumbsVisibility(Visibility.Collapsed);
+                SetArrowEndpointThumbsVisibility(Visibility.Collapsed);
+                return;
+            }
+
+            if (_selectedShape is ShapePath arrow)
+            {
+                SetShapeResizeThumbsVisibility(Visibility.Collapsed);
+                if (_arrowAnchors.TryGetValue(arrow, out (Point Start, Point End) anchors))
+                {
+                    UpdateArrowEndpointThumbPositions(anchors.Start, anchors.End);
+                    SetArrowEndpointThumbsVisibility(Visibility.Visible);
+                }
+                else
+                {
+                    SetArrowEndpointThumbsVisibility(Visibility.Collapsed);
+                }
+
+                return;
+            }
+
+            SetArrowEndpointThumbsVisibility(Visibility.Collapsed);
+            UpdateShapeResizeThumbPositions(GetShapeBounds(_selectedShape));
+            SetShapeResizeThumbsVisibility(Visibility.Visible);
+        }
+
         private void SetShapeResizeThumbsVisibility(Visibility visibility)
         {
             ShapeTopLeftThumb.Visibility = visibility;
@@ -869,9 +908,21 @@ namespace ScreenshotQ
             ShapeBottomLeftThumb.Visibility = visibility;
         }
 
+        private void SetArrowEndpointThumbsVisibility(Visibility visibility)
+        {
+            ArrowStartThumb.Visibility = visibility;
+            ArrowEndThumb.Visibility = visibility;
+        }
+
+        private void UpdateArrowEndpointThumbPositions(Point start, Point end)
+        {
+            SetThumbPosition(ArrowStartThumb, start.X, start.Y);
+            SetThumbPosition(ArrowEndThumb, end.X, end.Y);
+        }
+
         private void ShapeResizeThumb_DragDelta(object sender, DragDeltaEventArgs e)
         {
-            if (_selectedShape is null || sender is not Thumb thumb || thumb.Tag is not string tag)
+            if (_selectedShape is null || _selectedShape is ShapePath || sender is not Thumb thumb || thumb.Tag is not string tag)
             {
                 return;
             }
@@ -910,6 +961,44 @@ namespace ScreenshotQ
             Rect resizedBounds = new(left, top, right - left, bottom - top);
             ApplyShapeBounds(_selectedShape, currentBounds, resizedBounds);
             UpdateShapeResizeThumbPositions(resizedBounds);
+        }
+
+        private void ArrowEndpointThumb_DragDelta(object sender, DragDeltaEventArgs e)
+        {
+            if (_selectedShape is not ShapePath arrow || sender is not Thumb thumb)
+            {
+                return;
+            }
+
+            if (!_arrowAnchors.TryGetValue(arrow, out (Point Start, Point End) anchors))
+            {
+                return;
+            }
+
+            Point start = anchors.Start;
+            Point end = anchors.End;
+
+            if (ReferenceEquals(thumb, ArrowStartThumb))
+            {
+                start = new Point(
+                    Clamp(start.X + e.HorizontalChange, 0, _surfaceWidth),
+                    Clamp(start.Y + e.VerticalChange, 0, _surfaceHeight));
+            }
+            else if (ReferenceEquals(thumb, ArrowEndThumb))
+            {
+                end = new Point(
+                    Clamp(end.X + e.HorizontalChange, 0, _surfaceWidth),
+                    Clamp(end.Y + e.VerticalChange, 0, _surfaceHeight));
+            }
+            else
+            {
+                return;
+            }
+
+            arrow.Data = BuildArrowGeometry(start, end);
+            _arrowAnchors[arrow] = (start, end);
+            UpdateArrowEndpointThumbPositions(start, end);
+            HintText.Text = "Arrow resized.";
         }
 
         private void MoveSelectedShape(Vector delta)
@@ -975,7 +1064,7 @@ namespace ScreenshotQ
                 }
             }
 
-            UpdateShapeResizeThumbPositions(GetShapeBounds(_selectedShape));
+            UpdateSelectedShapeHandles();
         }
 
         private void ApplyShapeBounds(Shape shape, Rect oldBounds, Rect newBounds)
@@ -1070,6 +1159,7 @@ namespace ScreenshotQ
             Visibility toolPanelVisibility = ToolPanel.Visibility;
             Visibility resizeThumbVisibility = TopLeftThumb.Visibility;
             Visibility shapeResizeThumbVisibility = ShapeTopLeftThumb.Visibility;
+            Visibility arrowEndpointThumbVisibility = ArrowStartThumb.Visibility;
             Visibility dimOverlayVisibility = DimOverlay.Visibility;
             Geometry? previewClip = SelectedPreview.Clip;
 
@@ -1077,6 +1167,7 @@ namespace ScreenshotQ
             ToolPanel.Visibility = Visibility.Collapsed;
             SetResizeThumbsVisibility(Visibility.Collapsed);
             SetShapeResizeThumbsVisibility(Visibility.Collapsed);
+            SetArrowEndpointThumbsVisibility(Visibility.Collapsed);
 
             if (IsFullSurfaceSelection(selection))
             {
@@ -1120,6 +1211,7 @@ namespace ScreenshotQ
                 ToolPanel.Visibility = toolPanelVisibility;
                 SetResizeThumbsVisibility(resizeThumbVisibility);
                 SetShapeResizeThumbsVisibility(shapeResizeThumbVisibility);
+                SetArrowEndpointThumbsVisibility(arrowEndpointThumbVisibility);
                 DimOverlay.Visibility = dimOverlayVisibility;
             }
         }
