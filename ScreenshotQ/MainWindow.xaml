@@ -123,6 +123,8 @@
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="12"/>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
                         <Button x:Name="ScreenshotButton"
@@ -137,6 +139,23 @@
                                 Content="Open Folder"
                                 Style="{StaticResource SecondaryButtonStyle}"
                                 Click="OpenFolderButton_Click"/>
+
+                        <Button Grid.Column="4"
+                                Height="44"
+                                Width="44"
+                                ToolTip="Shortcut Settings"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Padding="0"
+                                Click="ShortcutsButton_Click">
+                            <Viewbox Width="18" Height="18">
+                                <Canvas Width="24" Height="24">
+                                    <Path Stroke="#475569" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                          Data="M5,8 L19,8 M5,12 L14,12 M5,16 L11,16"/>
+                                    <Ellipse Canvas.Left="14" Canvas.Top="13" Width="6" Height="6" Stroke="#475569" StrokeThickness="1.6" Fill="Transparent"/>
+                                    <Line X1="19" Y1="18" X2="21" Y2="20" Stroke="#475569" StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                </Canvas>
+                            </Viewbox>
+                        </Button>
                     </Grid>
 
                     <Border Grid.Row="3"

@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -9,6 +10,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
+using Color = System.Windows.Media.Color;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 using MouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
 using MouseEventArgs = System.Windows.Input.MouseEventArgs;
@@ -56,15 +58,17 @@ namespace ScreenshotQ
         private int _numberCounter = 1;
         private readonly HashSet<Border> _editableTextBorders = new();
         private readonly Stack<Action> _undoActions = new();
+        private readonly Dictionary<string, (Key Key, ModifierKeys Modifiers)> _shortcutGestures = new();
         private Border? _selectedTextBorder;
         private bool _isMovingTextBorder;
         private Point _textBorderMoveStart;
         private Color _currentAnnotationColor = DefaultAnnotationColor;
         private double _currentStrokeThickness = DefaultStrokeThickness;
+        private bool _shortcutsEnabled;
 
         public string? SavedFilePath { get; private set; }
 
-        public SnipEditorWindow(BitmapSource screenshot, string outputFolder, Rect virtualBounds)
+        public SnipEditorWindow(BitmapSource screenshot, string outputFolder, Rect virtualBounds, Dictionary<string, (Key Key, ModifierKeys Modifiers)> shortcuts)
         {
             InitializeComponent();
 
@@ -105,6 +109,16 @@ namespace ScreenshotQ
             SetTextResizeThumbsVisibility(Visibility.Collapsed);
             UpdateCurrentColorSwatch();
             UpdateCurrentStrokePreview();
+            foreach (var kvp in shortcuts)
+                _shortcutGestures[kvp.Key] = kvp.Value;
+            _shortcutsEnabled = false;
+
+            Loaded += async (_, _) =>
+            {
+                // Prevent key carry-over (for example from the trigger button) from firing shortcut actions.
+                await Task.Delay(1200);
+                _shortcutsEnabled = true;
+            };
 
             HintText.Text = "Drag to select an area. Press Esc to cancel.";
         }
@@ -116,38 +130,47 @@ namespace ScreenshotQ
                 return;
             }
 
-            RectToolButton.IsChecked = false;
-            EllipseToolButton.IsChecked = false;
-            ArrowToolButton.IsChecked = false;
-            TextToolButton.IsChecked = false;
-            NumberToolButton.IsChecked = false;
-            clicked.IsChecked = true;
-
             if (clicked == RectToolButton)
             {
-                _currentTool = EditorTool.Rectangle;
-                HintText.Text = "Drag to draw rectangle.";
+                ApplyToolSelection(EditorTool.Rectangle);
             }
             else if (clicked == EllipseToolButton)
             {
-                _currentTool = EditorTool.Ellipse;
-                HintText.Text = "Drag to draw ellipse.";
+                ApplyToolSelection(EditorTool.Ellipse);
             }
             else if (clicked == ArrowToolButton)
             {
-                _currentTool = EditorTool.Arrow;
-                HintText.Text = "Drag to draw arrow.";
+                ApplyToolSelection(EditorTool.Arrow);
             }
             else if (clicked == TextToolButton)
             {
-                _currentTool = EditorTool.Text;
-                HintText.Text = "Click on image to place text.";
+                ApplyToolSelection(EditorTool.Text);
             }
             else if (clicked == NumberToolButton)
             {
-                _currentTool = EditorTool.Number;
-                HintText.Text = "Click to place a numbered marker.";
+                ApplyToolSelection(EditorTool.Number);
             }
+        }
+
+        private void ApplyToolSelection(EditorTool tool)
+        {
+            _currentTool = tool;
+
+            RectToolButton.IsChecked = tool == EditorTool.Rectangle;
+            EllipseToolButton.IsChecked = tool == EditorTool.Ellipse;
+            ArrowToolButton.IsChecked = tool == EditorTool.Arrow;
+            TextToolButton.IsChecked = tool == EditorTool.Text;
+            NumberToolButton.IsChecked = tool == EditorTool.Number;
+
+            HintText.Text = tool switch
+            {
+                EditorTool.Rectangle => "Drag to draw rectangle.",
+                EditorTool.Ellipse => "Drag to draw ellipse.",
+                EditorTool.Arrow => "Drag to draw arrow.",
+                EditorTool.Text => "Click on image to place text.",
+                EditorTool.Number => "Click to place a numbered marker.",
+                _ => HintText.Text,
+            };
         }
 
         private void OverlayCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -1569,6 +1592,80 @@ namespace ScreenshotQ
             _undoActions.Push(undoAction);
         }
 
+        private bool MatchesShortcut(KeyEventArgs e, string actionKey)
+        {
+            if (!_shortcutGestures.TryGetValue(actionKey, out (Key Key, ModifierKeys Modifiers) configured))
+                return false;
+
+            Key pressed = e.Key == Key.System ? e.SystemKey : e.Key;
+            return pressed == configured.Key && Keyboard.Modifiers == configured.Modifiers;
+        }
+
+        private bool TryHandleShortcut(KeyEventArgs e)
+        {
+            if (MatchesShortcut(e, "undo"))
+            {
+                UndoLastAction();
+                return true;
+            }
+
+            if (MatchesShortcut(e, "save"))
+            {
+                SaveButton_Click(this, new RoutedEventArgs());
+                return true;
+            }
+
+            if (MatchesShortcut(e, "copy"))
+            {
+                CopyButton_Click(this, new RoutedEventArgs());
+                return true;
+            }
+
+            if (MatchesShortcut(e, "delete"))
+            {
+                DeleteSelectedShape();
+                return true;
+            }
+
+            if (MatchesShortcut(e, "cancel"))
+            {
+                CancelButton_Click(this, new RoutedEventArgs());
+                return true;
+            }
+
+            if (MatchesShortcut(e, "toolRect"))
+            {
+                ApplyToolSelection(EditorTool.Rectangle);
+                return true;
+            }
+
+            if (MatchesShortcut(e, "toolEllipse"))
+            {
+                ApplyToolSelection(EditorTool.Ellipse);
+                return true;
+            }
+
+            if (MatchesShortcut(e, "toolArrow"))
+            {
+                ApplyToolSelection(EditorTool.Arrow);
+                return true;
+            }
+
+            if (MatchesShortcut(e, "toolText"))
+            {
+                ApplyToolSelection(EditorTool.Text);
+                return true;
+            }
+
+            if (MatchesShortcut(e, "toolNumber"))
+            {
+                ApplyToolSelection(EditorTool.Number);
+                return true;
+            }
+
+            return false;
+        }
+
         private void ColorButton_Click(object sender, RoutedEventArgs e)
         {
             if (FindResource("ColorPickerMenu") is not ContextMenu colorMenu)
@@ -1824,29 +1921,20 @@ namespace ScreenshotQ
 
         private void Window_KeyDown(object sender, KeyEventArgs e)
         {
+            if (!_shortcutsEnabled)
+            {
+                return;
+            }
+
             if (Keyboard.FocusedElement is TextBox)
             {
                 return;
             }
 
-            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && e.Key == Key.Z)
+            if (TryHandleShortcut(e))
             {
-                UndoLastAction();
                 e.Handled = true;
                 return;
-            }
-
-            if (e.Key == Key.Delete)
-            {
-                DeleteSelectedShape();
-                e.Handled = true;
-                return;
-            }
-
-            if (e.Key == Key.Escape)
-            {
-                DialogResult = false;
-                Close();
             }
         }
     }
