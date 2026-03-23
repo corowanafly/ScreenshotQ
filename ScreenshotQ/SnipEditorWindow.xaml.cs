@@ -33,7 +33,8 @@ namespace ScreenshotQ
         private const double MinShapeSize = 10;
         private const double MinTextWidth = 100;
         private const double MinTextHeight = 36;
-        private static readonly Color DefaultAnnotationColor = Color.FromRgb(244, 63, 94);
+        private const double DefaultStrokeThickness = 4;
+        private static readonly Color DefaultAnnotationColor = Color.FromRgb(255, 23, 68);
 
         private readonly string _outputFolder;
         private readonly double _dpiScaleX;
@@ -59,6 +60,7 @@ namespace ScreenshotQ
         private bool _isMovingTextBorder;
         private Point _textBorderMoveStart;
         private Color _currentAnnotationColor = DefaultAnnotationColor;
+        private double _currentStrokeThickness = DefaultStrokeThickness;
 
         public string? SavedFilePath { get; private set; }
 
@@ -102,6 +104,7 @@ namespace ScreenshotQ
             SetArrowEndpointThumbsVisibility(Visibility.Collapsed);
             SetTextResizeThumbsVisibility(Visibility.Collapsed);
             UpdateCurrentColorSwatch();
+            UpdateCurrentStrokePreview();
 
             HintText.Text = "Drag to select an area. Press Esc to cancel.";
         }
@@ -403,20 +406,20 @@ namespace ScreenshotQ
                 {
                     Stroke = strokeBrush,
                     Fill = Brushes.Transparent,
-                    StrokeThickness = 3,
+                    StrokeThickness = _currentStrokeThickness,
                     IsHitTestVisible = true
                 },
                 EditorTool.Ellipse => new Ellipse
                 {
                     Stroke = strokeBrush,
                     Fill = Brushes.Transparent,
-                    StrokeThickness = 3,
+                    StrokeThickness = _currentStrokeThickness,
                     IsHitTestVisible = true
                 },
                 EditorTool.Arrow => new ShapePath
                 {
                     Stroke = strokeBrush,
-                    StrokeThickness = 3,
+                    StrokeThickness = _currentStrokeThickness,
                     Fill = Brushes.Transparent,
                     IsHitTestVisible = true
                 },
@@ -578,7 +581,7 @@ namespace ScreenshotQ
             {
                 Fill = new SolidColorBrush(_currentAnnotationColor),
                 Stroke = new SolidColorBrush(DarkenColor(_currentAnnotationColor, 0.68)),
-                StrokeThickness = 2
+                StrokeThickness = Math.Max(2, _currentStrokeThickness - 1)
             });
 
             marker.Children.Add(new TextBlock
@@ -1116,6 +1119,7 @@ namespace ScreenshotQ
         {
             ClearSelectedTextBorder();
             _selectedShape = shape;
+            SyncToolbarStyleFromShape(shape);
             UpdateSelectedShapeHandles();
 
             if (shape is ShapePath)
@@ -1576,6 +1580,17 @@ namespace ScreenshotQ
             colorMenu.IsOpen = true;
         }
 
+        private void StrokeButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (FindResource("StrokePickerMenu") is not ContextMenu strokeMenu)
+            {
+                return;
+            }
+
+            strokeMenu.PlacementTarget = StrokeButton;
+            strokeMenu.IsOpen = true;
+        }
+
         private void ColorMenuItem_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not MenuItem menuItem || menuItem.Tag is not string rawColor)
@@ -1590,14 +1605,33 @@ namespace ScreenshotQ
 
             _currentAnnotationColor = selectedColor;
             UpdateCurrentColorSwatch();
-            ApplyCurrentColorToSelection();
+            ApplyCurrentStyleToSelection();
         }
 
-        private void ApplyCurrentColorToSelection()
+        private void StrokeMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not MenuItem menuItem || menuItem.Tag is not string rawThickness)
+            {
+                return;
+            }
+
+            if (!double.TryParse(rawThickness, NumberStyles.Float, CultureInfo.InvariantCulture, out double selectedThickness))
+            {
+                return;
+            }
+
+            _currentStrokeThickness = selectedThickness;
+            UpdateCurrentStrokePreview();
+            ApplyCurrentStyleToSelection();
+        }
+
+        private void ApplyCurrentStyleToSelection()
         {
             if (_selectedShape is not null)
             {
                 _selectedShape.Stroke = new SolidColorBrush(_currentAnnotationColor);
+                _selectedShape.StrokeThickness = _currentStrokeThickness;
+                UpdateSelectedShapeHandles();
             }
 
             if (_selectedTextBorder?.Child is TextBox textBox)
@@ -1609,6 +1643,23 @@ namespace ScreenshotQ
         private void UpdateCurrentColorSwatch()
         {
             CurrentColorSwatch.Fill = new SolidColorBrush(_currentAnnotationColor);
+        }
+
+        private void UpdateCurrentStrokePreview()
+        {
+            CurrentStrokePreview.Height = _currentStrokeThickness;
+        }
+
+        private void SyncToolbarStyleFromShape(Shape shape)
+        {
+            if (shape.Stroke is SolidColorBrush strokeBrush)
+            {
+                _currentAnnotationColor = strokeBrush.Color;
+                UpdateCurrentColorSwatch();
+            }
+
+            _currentStrokeThickness = Math.Max(2, shape.StrokeThickness);
+            UpdateCurrentStrokePreview();
         }
 
         private static Color DarkenColor(Color color, double factor)

@@ -13,34 +13,57 @@
         KeyDown="Window_KeyDown">
     <Window.Resources>
         <ContextMenu x:Key="ColorPickerMenu">
-            <MenuItem Header="Red" Tag="#F43F5E" Click="ColorMenuItem_Click">
+            <MenuItem Header="Red" Tag="#FF1744" Click="ColorMenuItem_Click">
                 <MenuItem.Icon>
-                    <Border Width="12" Height="12" Background="#F43F5E" CornerRadius="2"/>
+                    <Border Width="12" Height="12" Background="#FF1744" CornerRadius="2"/>
                 </MenuItem.Icon>
             </MenuItem>
-            <MenuItem Header="Orange" Tag="#F97316" Click="ColorMenuItem_Click">
+            <MenuItem Header="Orange" Tag="#FF6D00" Click="ColorMenuItem_Click">
                 <MenuItem.Icon>
-                    <Border Width="12" Height="12" Background="#F97316" CornerRadius="2"/>
+                    <Border Width="12" Height="12" Background="#FF6D00" CornerRadius="2"/>
                 </MenuItem.Icon>
             </MenuItem>
-            <MenuItem Header="Green" Tag="#10B981" Click="ColorMenuItem_Click">
+            <MenuItem Header="Green" Tag="#00E676" Click="ColorMenuItem_Click">
                 <MenuItem.Icon>
-                    <Border Width="12" Height="12" Background="#10B981" CornerRadius="2"/>
+                    <Border Width="12" Height="12" Background="#00E676" CornerRadius="2"/>
                 </MenuItem.Icon>
             </MenuItem>
-            <MenuItem Header="Blue" Tag="#3B82F6" Click="ColorMenuItem_Click">
+            <MenuItem Header="Blue" Tag="#00B0FF" Click="ColorMenuItem_Click">
                 <MenuItem.Icon>
-                    <Border Width="12" Height="12" Background="#3B82F6" CornerRadius="2"/>
+                    <Border Width="12" Height="12" Background="#00B0FF" CornerRadius="2"/>
                 </MenuItem.Icon>
             </MenuItem>
-            <MenuItem Header="Purple" Tag="#8B5CF6" Click="ColorMenuItem_Click">
+            <MenuItem Header="Purple" Tag="#D500F9" Click="ColorMenuItem_Click">
                 <MenuItem.Icon>
-                    <Border Width="12" Height="12" Background="#8B5CF6" CornerRadius="2"/>
+                    <Border Width="12" Height="12" Background="#D500F9" CornerRadius="2"/>
+                </MenuItem.Icon>
+            </MenuItem>
+            <MenuItem Header="Yellow" Tag="#FFEA00" Click="ColorMenuItem_Click">
+                <MenuItem.Icon>
+                    <Border Width="12" Height="12" Background="#FFEA00" CornerRadius="2"/>
                 </MenuItem.Icon>
             </MenuItem>
             <MenuItem Header="White" Tag="#FFFFFF" Click="ColorMenuItem_Click">
                 <MenuItem.Icon>
                     <Border Width="12" Height="12" Background="#FFFFFF" BorderBrush="#94A3B8" BorderThickness="1" CornerRadius="2"/>
+                </MenuItem.Icon>
+            </MenuItem>
+        </ContextMenu>
+
+        <ContextMenu x:Key="StrokePickerMenu">
+            <MenuItem Header="Thin" Tag="2" Click="StrokeMenuItem_Click">
+                <MenuItem.Icon>
+                    <Rectangle Width="12" Height="2" Fill="#E2E8F0" RadiusX="1" RadiusY="1"/>
+                </MenuItem.Icon>
+            </MenuItem>
+            <MenuItem Header="Medium" Tag="4" Click="StrokeMenuItem_Click">
+                <MenuItem.Icon>
+                    <Rectangle Width="12" Height="4" Fill="#E2E8F0" RadiusX="2" RadiusY="2"/>
+                </MenuItem.Icon>
+            </MenuItem>
+            <MenuItem Header="Bold" Tag="6" Click="StrokeMenuItem_Click">
+                <MenuItem.Icon>
+                    <Rectangle Width="12" Height="6" Fill="#E2E8F0" RadiusX="2" RadiusY="2"/>
                 </MenuItem.Icon>
             </MenuItem>
         </ContextMenu>
@@ -152,7 +175,7 @@
                 <Rectangle x:Name="SelectionRectangle"
                            Visibility="Collapsed"
                            Stroke="#38BDF8"
-                           Fill="#1A38BDF8"
+                           Fill="Transparent"
                            StrokeThickness="2"
                            StrokeDashArray="4,4"
                            IsHitTestVisible="False"
@@ -247,7 +270,10 @@
                             </Viewbox>
                         </Button>
                         <Button x:Name="ColorButton" Style="{StaticResource ToolbarActionButtonStyle}" Click="ColorButton_Click" ToolTip="Choose annotation color">
-                            <Ellipse x:Name="CurrentColorSwatch" Width="12" Height="12" Fill="#F43F5E" Stroke="#E2E8F0" StrokeThickness="1"/>
+                            <Ellipse x:Name="CurrentColorSwatch" Width="12" Height="12" Fill="#FF1744" Stroke="#E2E8F0" StrokeThickness="1"/>
+                        </Button>
+                        <Button x:Name="StrokeButton" Style="{StaticResource ToolbarActionButtonStyle}" Click="StrokeButton_Click" ToolTip="Choose stroke thickness">
+                            <Rectangle x:Name="CurrentStrokePreview" Width="12" Height="4" Fill="#E2E8F0" RadiusX="2" RadiusY="2"/>
                         </Button>
                         <Button Style="{StaticResource ToolbarPrimaryActionButtonStyle}" Margin="3,0,0,0" Click="SaveButton_Click" ToolTip="Save screenshot and copy to clipboard">
                             <Viewbox Width="12" Height="12">
