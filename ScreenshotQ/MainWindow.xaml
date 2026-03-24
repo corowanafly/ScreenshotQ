@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="ScreenshotQ"
-        Icon="pack://siteoforigin:,,,/Assets/5172910.png"
+        Icon="pack://siteoforigin:,,,/Assets/5172910.ico"
         Height="520"
         Width="860"
         MinHeight="450"

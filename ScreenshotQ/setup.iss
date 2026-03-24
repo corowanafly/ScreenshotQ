@@ -19,6 +19,7 @@ DefaultGroupName={#AppName}
 AllowNoIcons=yes
 OutputDir=dist\installer
 OutputBaseFilename=ScreenshotQ-Setup
+SetupIconFile=Assets\5172910.ico
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
