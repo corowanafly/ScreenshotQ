@@ -3,7 +3,7 @@
 [Oo]bj/
 out/
 publish/
-
+dist/
 # Visual Studio
 .vs/
 *.user
