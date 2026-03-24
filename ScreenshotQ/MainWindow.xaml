@@ -96,6 +96,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <StackPanel>
@@ -159,7 +160,17 @@
                         </Button>
                     </Grid>
 
-                    <Border Grid.Row="3"
+                    <CheckBox x:Name="StartupWithWindowsCheckBox"
+                              Grid.Row="3"
+                              Margin="0,16,0,0"
+                              VerticalAlignment="Center"
+                              Foreground="#334155"
+                              FontSize="13"
+                              Content="Start with Windows"
+                              Checked="StartupWithWindowsCheckBox_Changed"
+                              Unchecked="StartupWithWindowsCheckBox_Changed"/>
+
+                    <Border Grid.Row="4"
                             Margin="0,20,0,0"
                             Padding="12"
                             CornerRadius="10"

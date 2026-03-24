@@ -5,6 +5,7 @@ using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -37,6 +38,8 @@ namespace ScreenshotQ
         };
 
         private const int HotkeyId = 9001;
+    private const string StartupRegistryPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
+    private const string StartupValueName = "ScreenshotQ";
 
         [Flags]
         private enum HotKeyModifiers : uint
@@ -60,12 +63,16 @@ namespace ScreenshotQ
         private readonly string _outputFolder;
         private readonly Dictionary<string, (Key Key, ModifierKeys Modifiers)> _shortcuts = new();
         private readonly Forms.NotifyIcon _trayIcon;
+        private readonly bool _startMinimized;
         private bool _isExplicitExit;
         private bool _closeHintShown;
+        private bool _suppressStartupToggleEvent;
 
         public MainWindow()
         {
             InitializeComponent();
+
+            _startMinimized = ShouldStartMinimized(Environment.GetCommandLineArgs());
 
             _outputFolder = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
@@ -74,6 +81,7 @@ namespace ScreenshotQ
             Directory.CreateDirectory(_outputFolder);
             InitializeDefaultShortcuts();
             _trayIcon = CreateTrayIcon();
+            Loaded += MainWindow_Loaded;
 
             SourceInitialized += (_, _) =>
             {
@@ -91,6 +99,16 @@ namespace ScreenshotQ
                 _trayIcon.Visible = false;
                 _trayIcon.Dispose();
             };
+        }
+
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            RefreshStartupToggle();
+
+            if (_startMinimized)
+            {
+                _ = Dispatcher.InvokeAsync(() => HideToTray(showHint: false));
+            }
         }
 
         private Forms.NotifyIcon CreateTrayIcon()
@@ -146,12 +164,12 @@ namespace ScreenshotQ
             HideToTray();
         }
 
-        private void HideToTray()
+        private void HideToTray(bool showHint = true)
         {
             ShowInTaskbar = false;
             Hide();
 
-            if (_closeHintShown)
+            if (!showHint || _closeHintShown)
             {
                 return;
             }
@@ -192,6 +210,82 @@ namespace ScreenshotQ
 
             _isExplicitExit = true;
             Close();
+        }
+
+        private static bool ShouldStartMinimized(string[] args)
+        {
+            foreach (string arg in args)
+            {
+                if (string.Equals(arg, "--minimized", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(arg, "--tray", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(arg, "/startup", StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private void RefreshStartupToggle()
+        {
+            _suppressStartupToggleEvent = true;
+            StartupWithWindowsCheckBox.IsChecked = IsStartWithWindowsEnabled();
+            _suppressStartupToggleEvent = false;
+        }
+
+        private static bool IsStartWithWindowsEnabled()
+        {
+            using RegistryKey? key = Registry.CurrentUser.OpenSubKey(StartupRegistryPath, writable: false);
+            string? value = key?.GetValue(StartupValueName) as string;
+            return !string.IsNullOrWhiteSpace(value);
+        }
+
+        private static void SetStartWithWindows(bool enabled)
+        {
+            using RegistryKey key = Registry.CurrentUser.CreateSubKey(StartupRegistryPath);
+
+            if (enabled)
+            {
+                string executablePath = Environment.ProcessPath ?? Process.GetCurrentProcess().MainModule?.FileName ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(executablePath))
+                {
+                    throw new InvalidOperationException("Unable to determine executable path.");
+                }
+
+                key.SetValue(StartupValueName, $"\"{executablePath}\" --minimized");
+            }
+            else
+            {
+                key.DeleteValue(StartupValueName, throwOnMissingValue: false);
+            }
+        }
+
+        private void StartupWithWindowsCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_suppressStartupToggleEvent)
+            {
+                return;
+            }
+
+            try
+            {
+                bool enabled = StartupWithWindowsCheckBox.IsChecked == true;
+                SetStartWithWindows(enabled);
+                StatusText.Text = enabled
+                    ? "ScreenshotQ will start with Windows."
+                    : "Startup with Windows disabled.";
+            }
+            catch (Exception ex)
+            {
+                RefreshStartupToggle();
+                MessageBox.Show(
+                    this,
+                    "Could not update startup setting. " + ex.Message,
+                    "Startup Setting Failed",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+            }
         }
 
         private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
