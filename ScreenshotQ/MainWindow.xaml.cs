@@ -128,8 +128,24 @@ namespace ScreenshotQ
                 ContextMenuStrip = menu
             };
 
-            notifyIcon.DoubleClick += (_, _) => ShowMainWindowFromTray();
+            notifyIcon.MouseClick += TrayIcon_MouseClick;
             return notifyIcon;
+        }
+
+        private void TrayIcon_MouseClick(object? sender, Forms.MouseEventArgs e)
+        {
+            if (e.Button != Forms.MouseButtons.Left)
+            {
+                return;
+            }
+
+            _ = Dispatcher.InvokeAsync(() =>
+            {
+                if (ScreenshotButton.IsEnabled)
+                {
+                    ScreenshotButton_Click(this, new RoutedEventArgs());
+                }
+            });
         }
 
         private static System.Drawing.Icon? CreateTrayIconFromAsset()
