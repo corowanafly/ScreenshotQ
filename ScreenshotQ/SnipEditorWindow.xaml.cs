@@ -39,10 +39,12 @@ namespace ScreenshotQ
         private static readonly Color DefaultAnnotationColor = Color.FromRgb(255, 23, 68);
 
         private readonly string _outputFolder;
-        private readonly double _dpiScaleX;
-        private readonly double _dpiScaleY;
-        private readonly double _surfaceWidth;
-        private readonly double _surfaceHeight;
+        private readonly BitmapSource _capturedScreenshot;
+        private readonly Rect _virtualBoundsPixels;
+        private double _dpiScaleX;
+        private double _dpiScaleY;
+        private double _surfaceWidth;
+        private double _surfaceHeight;
         private readonly HashSet<Shape> _editableShapes = new();
         private readonly Dictionary<ShapePath, (Point Start, Point End)> _arrowAnchors = new();
         private EditorTool _currentTool = EditorTool.Select;
@@ -73,30 +75,19 @@ namespace ScreenshotQ
             InitializeComponent();
 
             _outputFolder = outputFolder;
+            _capturedScreenshot = screenshot;
+            _virtualBoundsPixels = virtualBounds;
             Directory.CreateDirectory(_outputFolder);
 
-            DpiScale dpi = VisualTreeHelper.GetDpi(Application.Current.MainWindow ?? this);
-            _dpiScaleX = dpi.DpiScaleX;
-            _dpiScaleY = dpi.DpiScaleY;
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Left = 0;
+            Top = 0;
+            Width = 1;
+            Height = 1;
 
-            Left = virtualBounds.Left / _dpiScaleX;
-            Top = virtualBounds.Top / _dpiScaleY;
-            Width = virtualBounds.Width / _dpiScaleX;
-            Height = virtualBounds.Height / _dpiScaleY;
-
-            _surfaceWidth = screenshot.PixelWidth / _dpiScaleX;
-            _surfaceHeight = screenshot.PixelHeight / _dpiScaleY;
-
-            FrozenImage.Source = screenshot;
-            FrozenImage.Width = _surfaceWidth;
-            FrozenImage.Height = _surfaceHeight;
-
-            SelectedPreview.Source = screenshot;
-            SelectedPreview.Width = _surfaceWidth;
-            SelectedPreview.Height = _surfaceHeight;
-
-            OverlayCanvas.Width = _surfaceWidth;
-            OverlayCanvas.Height = _surfaceHeight;
+            ApplySurfaceLayout(1.0, 1.0);
+            SourceInitialized += (_, _) => ApplySurfaceLayoutFromWindowDpi();
+            Loaded += (_, _) => ApplySurfaceLayoutFromWindowDpi();
 
             SelectionRectangle.Width = 0;
             SelectionRectangle.Height = 0;
@@ -121,6 +112,51 @@ namespace ScreenshotQ
             };
 
             HintText.Text = "Drag to select an area. Press Esc to cancel.";
+        }
+
+        private void ApplySurfaceLayoutFromWindowDpi()
+        {
+            (double scaleX, double scaleY) = GetWindowDpiScale();
+            ApplySurfaceLayout(scaleX, scaleY);
+        }
+
+        private (double ScaleX, double ScaleY) GetWindowDpiScale()
+        {
+            PresentationSource? source = PresentationSource.FromVisual(this);
+            if (source?.CompositionTarget is null)
+            {
+                return (1.0, 1.0);
+            }
+
+            Matrix transformToDevice = source.CompositionTarget.TransformToDevice;
+            double scaleX = transformToDevice.M11 == 0 ? 1.0 : transformToDevice.M11;
+            double scaleY = transformToDevice.M22 == 0 ? 1.0 : transformToDevice.M22;
+            return (Math.Max(1.0, scaleX), Math.Max(1.0, scaleY));
+        }
+
+        private void ApplySurfaceLayout(double scaleX, double scaleY)
+        {
+            _dpiScaleX = Math.Max(1.0, scaleX);
+            _dpiScaleY = Math.Max(1.0, scaleY);
+
+            Left = _virtualBoundsPixels.Left / _dpiScaleX;
+            Top = _virtualBoundsPixels.Top / _dpiScaleY;
+            Width = _virtualBoundsPixels.Width / _dpiScaleX;
+            Height = _virtualBoundsPixels.Height / _dpiScaleY;
+
+            _surfaceWidth = _capturedScreenshot.PixelWidth / _dpiScaleX;
+            _surfaceHeight = _capturedScreenshot.PixelHeight / _dpiScaleY;
+
+            FrozenImage.Source = _capturedScreenshot;
+            FrozenImage.Width = _surfaceWidth;
+            FrozenImage.Height = _surfaceHeight;
+
+            SelectedPreview.Source = _capturedScreenshot;
+            SelectedPreview.Width = _surfaceWidth;
+            SelectedPreview.Height = _surfaceHeight;
+
+            OverlayCanvas.Width = _surfaceWidth;
+            OverlayCanvas.Height = _surfaceHeight;
         }
 
         private void ToolButton_Click(object sender, RoutedEventArgs e)

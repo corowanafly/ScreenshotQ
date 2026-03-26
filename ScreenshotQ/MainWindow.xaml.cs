@@ -612,10 +612,17 @@ namespace ScreenshotQ
 
         private (BitmapSource Image, Rect Bounds) CaptureVirtualScreenImage()
         {
-            int left = (int)SystemParameters.VirtualScreenLeft;
-            int top = (int)SystemParameters.VirtualScreenTop;
-            int width = (int)SystemParameters.VirtualScreenWidth;
-            int height = (int)SystemParameters.VirtualScreenHeight;
+            // Use physical pixel bounds to avoid DPI scaling issues (100%/150%/etc.).
+            System.Drawing.Rectangle virtualScreen = Forms.SystemInformation.VirtualScreen;
+            int left = virtualScreen.Left;
+            int top = virtualScreen.Top;
+            int width = virtualScreen.Width;
+            int height = virtualScreen.Height;
+
+            if (width <= 0 || height <= 0)
+            {
+                throw new InvalidOperationException("Could not determine virtual screen bounds.");
+            }
 
             using var bitmap = new Bitmap(width, height);
             using (var graphics = Graphics.FromImage(bitmap))

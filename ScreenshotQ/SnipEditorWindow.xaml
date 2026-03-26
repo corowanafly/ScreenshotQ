@@ -152,7 +152,7 @@
     </Window.Resources>
     <Grid>
         <Grid x:Name="SurfaceRoot" ClipToBounds="True">
-            <Image x:Name="FrozenImage" Stretch="None" HorizontalAlignment="Left" VerticalAlignment="Top"/>
+            <Image x:Name="FrozenImage" Stretch="Fill" HorizontalAlignment="Left" VerticalAlignment="Top"/>
 
             <Rectangle x:Name="DimOverlay"
                        Fill="#6B111827"
@@ -161,7 +161,7 @@
                        IsHitTestVisible="False"/>
 
             <Image x:Name="SelectedPreview"
-                   Stretch="None"
+                     Stretch="Fill"
                    HorizontalAlignment="Left"
                    VerticalAlignment="Top"
                    IsHitTestVisible="False"
