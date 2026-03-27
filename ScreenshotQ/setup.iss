@@ -3,7 +3,9 @@
 ; Output: dist\installer\ScreenshotQ-Setup.exe
 
 #define AppName "ScreenshotQ"
+#ifndef AppVersion
 #define AppVersion "1.0.0"
+#endif
 #define AppPublisher "ScreenshotQ"
 #define AppExeName "ScreenshotQ.exe"
 #define SourceDir "dist\exe"
